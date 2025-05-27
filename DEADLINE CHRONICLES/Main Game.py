@@ -8,9 +8,9 @@ pygame.init()
 # Display constants
 WIDTH, HEIGHT = 1280, 720
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Deadline Chronicles")
+pygame.display.set_caption("Game")
 
-# Set window icon
+# Set window icon (keep this functionality but don't display logo in menu)
 try:
     icon = pygame.image.load("Images/DEADLINE_CHRONICLES.png")
     pygame.display.set_icon(icon)
@@ -32,25 +32,47 @@ font_medium = pygame.font.SysFont("Arial", 48)
 font_large = pygame.font.SysFont("Arial", 72)
 font_small = pygame.font.SysFont("Arial", 24)
 
-# Load logo image
+# Load logo for display in menu
 try:
-    logo_img = pygame.image.load('Images/DEADLINE_CHRONICLES.png')
-    # Scale the logo if needed (adjust the size as appropriate for your screen)
-    logo_img = pygame.transform.scale(logo_img, (700, 450))
+    logo = pygame.image.load("Images/DEADLINE_CHRONICLES.png")
+    # Scale the logo to an appropriate size for display
+    logo = pygame.transform.scale(logo, (500, 500))
 except pygame.error:
-    print("Warning: Could not load logo image 'Images/DEADLINE_CHRONICLES.png'")
-    logo_img = None
+    print("Warning: Could not load logo image for display")
+    logo = None
 
 
 class PixelButton:
-    def __init__(self, x, y, width, height, text, image_path=None):
-        self.rect = pygame.Rect(x, y, width, height)    
+    def __init__(self, x, y, width, height, text, image_path=None, animation_frames=None, idle_animation_frames=None, hover_animation_frames=None):
+        self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.is_hovered = False
         self.pixel_size = 5  # Size of each "pixel" in our button
         self.shadow_offset = 4  # Pixel offset for the 3D effect
         self.image_path = image_path
         self.button_image = None
+
+        # Animation properties
+        self.animation_frames = animation_frames or []
+        self.current_frame = 0
+        self.is_animating = False
+        self.animation_speed = 8  # frames per animation frame (slower = more frames between changes)
+        self.animation_counter = 0
+        self.animation_complete_callback = None
+
+        # Idle animation properties
+        self.idle_animation_frames = idle_animation_frames or []
+        self.idle_current_frame = 0
+        self.idle_animation_speed = 12  # Slower than click animation
+        self.idle_animation_counter = 0
+        self.is_idle_animating = True  # Start idle animation by default
+
+        # Hover animation properties
+        self.hover_animation_frames = hover_animation_frames or []
+        self.hover_current_frame = 0
+        self.hover_animation_speed = 10  # Medium speed between click and idle
+        self.hover_animation_counter = 0
+        self.is_hover_animating = False  # Start hover animation when hovered
 
         # Load button image if provided
         if image_path:
@@ -62,11 +84,116 @@ class PixelButton:
                 print(f"Warning: Could not load button image '{image_path}'")
                 self.button_image = None
 
+        # Load animation frames
+        for i, frame_path in enumerate(self.animation_frames):
+            try:
+                frame_img = pygame.image.load(frame_path)
+                frame_img = pygame.transform.scale(frame_img, (width, height))
+                self.animation_frames[i] = frame_img
+            except pygame.error:
+                print(f"Warning: Could not load animation frame '{frame_path}'")
+                self.animation_frames[i] = None
+
+        # Load idle animation frames
+        for i, frame_path in enumerate(self.idle_animation_frames):
+            try:
+                frame_img = pygame.image.load(frame_path)
+                frame_img = pygame.transform.scale(frame_img, (width, height))
+                self.idle_animation_frames[i] = frame_img
+            except pygame.error:
+                print(f"Warning: Could not load idle animation frame '{frame_path}'")
+                self.idle_animation_frames[i] = None
+
+        # Load hover animation frames
+        for i, frame_path in enumerate(self.hover_animation_frames):
+            try:
+                frame_img = pygame.image.load(frame_path)
+                frame_img = pygame.transform.scale(frame_img, (width, height))
+                self.hover_animation_frames[i] = frame_img
+            except pygame.error:
+                print(f"Warning: Could not load hover animation frame '{frame_path}'")
+                self.hover_animation_frames[i] = None
+
         # Pre-render our pixel font text (fallback if no image)
-        if not self.button_image:
+        if not self.button_image and not self.animation_frames:
             self.text_surface = self.create_pixel_text(text)
         else:
             self.text_surface = None
+
+    def start_click_animation(self, callback=None):
+        """Start the click animation"""
+        if self.animation_frames:
+            self.is_animating = True
+            self.current_frame = 0
+            self.animation_counter = 0
+            self.animation_complete_callback = callback
+
+    def update_animation(self):
+        """Update click animation frame"""
+        if not self.is_animating:
+            return False
+
+        self.animation_counter += 1
+
+        if self.animation_counter >= self.animation_speed:
+            self.animation_counter = 0
+            self.current_frame += 1
+
+            if self.current_frame >= len(self.animation_frames):
+                # Animation complete
+                self.is_animating = False
+                self.current_frame = 0
+
+                # Call callback if provided
+                if self.animation_complete_callback:
+                    self.animation_complete_callback()
+                    self.animation_complete_callback = None
+
+                return True  # Animation finished
+
+        return False  # Animation still running
+
+    def update_idle_animation(self):
+        """Update idle animation frame"""
+        if not self.is_idle_animating or not self.idle_animation_frames:
+            return False
+
+        # Don't update idle animation if click animation is running or hover animation is active
+        if self.is_animating or (self.is_hover_animating and self.is_hovered):
+            return False
+
+        self.idle_animation_counter += 1
+
+        if self.idle_animation_counter >= self.idle_animation_speed:
+            self.idle_animation_counter = 0
+            self.idle_current_frame += 1
+
+            if self.idle_current_frame >= len(self.idle_animation_frames):
+                # Loop the idle animation
+                self.idle_current_frame = 0
+
+        return True  # Idle animation updated
+
+    def update_hover_animation(self):
+        """Update hover animation frame"""
+        if not self.is_hover_animating or not self.hover_animation_frames or not self.is_hovered:
+            return False
+
+        # Don't update hover animation if click animation is running
+        if self.is_animating:
+            return False
+
+        self.hover_animation_counter += 1
+
+        if self.hover_animation_counter >= self.hover_animation_speed:
+            self.hover_animation_counter = 0
+            self.hover_current_frame += 1
+
+            if self.hover_current_frame >= len(self.hover_animation_frames):
+                # Loop the hover animation
+                self.hover_current_frame = 0
+
+        return True  # Hover animation updated
 
     def create_pixel_text(self, text):
         # This is a simplified pixel font renderer
@@ -111,7 +238,7 @@ class PixelButton:
 
         return text_surface
 
-    # Functions to draw pixel letters
+    # Functions to draw pixel letters (keeping all the original letter drawing functions)
     def draw_pixel_S(self, surface, x, y):
         pixels = [
             (1, 0), (2, 0), (3, 0),
@@ -240,7 +367,42 @@ class PixelButton:
             pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
 
     def draw(self, surface):
-        # If we have a button image, use it
+        # Update animations
+        self.update_animation()
+        self.update_hover_animation()
+        self.update_idle_animation()
+
+        # If we're animating and have animation frames, use the current animation frame
+        if self.is_animating and self.animation_frames and self.current_frame < len(self.animation_frames):
+            current_image = self.animation_frames[self.current_frame]
+            if current_image:
+                # Add a subtle hover effect by slightly adjusting the position
+                offset = 2 if self.is_hovered else 0
+                image_rect = current_image.get_rect(center=(self.rect.centerx + offset, self.rect.centery + offset))
+                surface.blit(current_image, image_rect)
+                return
+
+        # If we're hovering and have hover animation frames, use the current hover frame
+        if self.is_hover_animating and self.is_hovered and self.hover_animation_frames and self.hover_current_frame < len(self.hover_animation_frames):
+            current_hover_image = self.hover_animation_frames[self.hover_current_frame]
+            if current_hover_image:
+                # Add a subtle hover effect by slightly adjusting the position
+                offset = 2  # Always apply offset for hover animation
+                image_rect = current_hover_image.get_rect(center=(self.rect.centerx + offset, self.rect.centery + offset))
+                surface.blit(current_hover_image, image_rect)
+                return
+
+        # If we have idle animation frames and idle animation is active, use the current idle frame
+        if self.is_idle_animating and self.idle_animation_frames and self.idle_current_frame < len(self.idle_animation_frames):
+            current_idle_image = self.idle_animation_frames[self.idle_current_frame]
+            if current_idle_image:
+                # Add a subtle hover effect by slightly adjusting the position
+                offset = 2 if self.is_hovered else 0
+                image_rect = current_idle_image.get_rect(center=(self.rect.centerx + offset, self.rect.centery + offset))
+                surface.blit(current_idle_image, image_rect)
+                return
+
+        # If we have a button image (and not animating), use it as fallback
         if self.button_image:
             # Add a subtle hover effect by slightly adjusting the position
             offset = 2 if self.is_hovered else 0
@@ -281,7 +443,18 @@ class PixelButton:
             surface.blit(self.text_surface, text_rect)
 
     def check_hover(self, pos):
+        was_hovered = self.is_hovered
         self.is_hovered = self.rect.collidepoint(pos)
+
+        # Toggle hover animation based on hover state
+        if self.is_hovered and not was_hovered:
+            # Mouse just entered the button
+            self.is_hover_animating = True
+            self.hover_current_frame = 0
+        elif not self.is_hovered and was_hovered:
+            # Mouse just left the button
+            self.is_hover_animating = False
+
         return self.is_hovered
 
     def is_clicked(self, event):
@@ -297,15 +470,10 @@ def draw_menu():
         color_value = int(y / HEIGHT * 155) + 100
         pygame.draw.line(SCREEN, (0, 0, color_value), (0, y), (WIDTH, y))
 
-    # Display logo
-    if logo_img is not None:
-        logo_rect = logo_img.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
-        SCREEN.blit(logo_img, logo_rect)
-    else:
-        # Fallback to text if logo image isn't available
-        title_text = font_large.render("Deadline Chronicles", True, WHITE)
-        title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
-        SCREEN.blit(title_text, title_rect)
+    # Display logo if available
+    if logo is not None:
+        logo_rect = logo.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 150))
+        SCREEN.blit(logo, logo_rect)
 
     # Draw buttons
     start_button.draw(SCREEN)
@@ -358,11 +526,18 @@ def game_loop():
         back_button.check_hover(mouse_pos)
 
         # Draw game screen
-        draw_game()
+        SCREEN.fill(BLACK)  # Clear the screen once per frame
+        back_button.draw(SCREEN)  # Draw the back button directly
 
         # Update display
         pygame.display.flip()
         clock.tick(60)
+
+
+def on_start_animation_complete():
+    """Called when the start button animation completes"""
+    print("Start button animation completed! Starting game...")
+    game_loop()
 
 
 def main_menu():
@@ -381,8 +556,8 @@ def main_menu():
             # Button click handling
             if start_button.is_clicked(event):
                 print("Start button clicked!")
-                # Transition to game window
-                game_loop()
+                # Start the click animation instead of immediately transitioning
+                start_button.start_click_animation(on_start_animation_complete)
 
             if exit_button.is_clicked(event):
                 print("Exit button clicked!")
@@ -401,15 +576,42 @@ def main_menu():
         clock.tick(60)
 
 
+# Updated animation frames - using your new start button images
+start_animation_frames = [
+    "Images/StartButtonPNG/Click/ClickStartButtonPNG1.png",  # Frame 1
+    "Images/StartButtonPNG/Click/ClickStartButtonPNG2.png",  # Frame 2
+    "Images/StartButtonPNG/Click/ClickStartButtonPNG3.png",  # Frame 3
+    "Images/StartButtonPNG/Click/ClickStartButtonPNG4.png",  # Frame 4
+    "Images/StartButtonPNG/Click/ClickStartButtonPNG5.png"  # Frame 5
+]
+
+# Idle animation frames
+idle_animation_frames = [
+    "Images/StartButtonPNG/Idle/IdleStartButtonPNG1.png",  # Frame 1
+    "Images/StartButtonPNG/Idle/IdleStartButtonPNG2.png",  # Frame 2
+    "Images/StartButtonPNG/Idle/IdleStartButtonPNG3.png",  # Frame 3
+    "Images/StartButtonPNG/Idle/IdleStartButtonPNG4.png"   # Frame 4
+]
+
+# Hover animation frames
+hover_animation_frames = [
+    "Images/StartButtonPNG/Hover/HoverStartButtonPNG1.png",  # Frame 1
+    "Images/StartButtonPNG/Hover/HoverStartButtonPNG2.png",  # Frame 2
+    "Images/StartButtonPNG/Hover/HoverStartButtonPNG3.png",  # Frame 3
+    "Images/StartButtonPNG/Hover/HoverStartButtonPNG4.png"   # Frame 4
+]
+
 # Create buttons with pixel art style
 button_width = 400
 button_height = 120
 
-# Start button with image (Image 2 - START with clock)
+# Start button with idle image, click animation frames, idle animation frames, and hover animation frames
 start_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 100,
-                           button_width, button_height, "START", "Images/START_BUTTON.png")
+                           button_width, button_height, "START",
+                           "Images/StartButtonPNG/Idle/IdleStartButtonPNG1.png", 
+                           start_animation_frames, idle_animation_frames, hover_animation_frames)
 
-# Exit button with image (Image 1 - EXIT) - positioned below the start button
+# Exit button with image (using existing EXIT button image)
 exit_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 100 + button_height + 20,
                           button_width, button_height, "EXIT", "Images/EXIT_BUTTON.png")
 
