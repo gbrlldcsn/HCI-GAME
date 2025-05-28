@@ -8,7 +8,7 @@ pygame.init()
 # Display constants
 WIDTH, HEIGHT = 1280, 720
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Game")
+pygame.display.set_caption("DEALINE CHRONICLES")
 
 # Set window icon (keep this functionality but don't display logo in menu)
 try:
@@ -28,18 +28,40 @@ BUTTON_RED_LIGHT = (220, 80, 60)  # Light red for highlights
 DARK_BLUE = (30, 30, 80)  # Game background color
 
 # Font
-font_medium = pygame.font.SysFont("Arial", 48)
-font_large = pygame.font.SysFont("Arial", 72)
-font_small = pygame.font.SysFont("Arial", 24)
+# Load custom fonts from Fonts folder
+try:
+    font_medium = pygame.font.Font("Fonts/slkscr.ttf", 24)
+    font_large = pygame.font.Font("Fonts/slkscr.ttf", 36)
+    font_small = pygame.font.Font("Fonts/slkscr.ttf", 16)
+    # Also load bold and extended variants for potential use
+    font_medium_bold = pygame.font.Font("Fonts/slkscrb.ttf", 24)
+    font_medium_extended = pygame.font.Font("Fonts/slkscre.ttf", 24)
+    font_medium_extended_bold = pygame.font.Font("Fonts/slkscreb.ttf", 24)
+except pygame.error:
+    print("Warning: Could not load custom fonts, falling back to system fonts")
+    font_medium = pygame.font.SysFont("Arial", 48)
+    font_large = pygame.font.SysFont("Arial", 72)
+    font_small = pygame.font.SysFont("Arial", 24)
+
+# Font is loaded from TTF files above
 
 # Load logo for display in menu
 try:
     logo = pygame.image.load("Images/DEADLINE_CHRONICLES.png")
     # Scale the logo to an appropriate size for display
-    logo = pygame.transform.scale(logo, (500, 500))
+    logo = pygame.transform.scale(logo, (700, 500))
 except pygame.error:
     print("Warning: Could not load logo image for display")
     logo = None
+
+# Load menu background
+try:
+    menu_bg = pygame.image.load("Images/Menu_Background/ComLab2_Temp.png")
+    # Scale the background to fill the window in landscape orientation
+    menu_bg = pygame.transform.scale(menu_bg, (WIDTH, HEIGHT))
+except pygame.error:
+    print("Warning: Could not load menu background image")
+    menu_bg = None
 
 
 class PixelButton:
@@ -56,7 +78,7 @@ class PixelButton:
         self.animation_frames = animation_frames or []
         self.current_frame = 0
         self.is_animating = False
-        self.animation_speed = 8  # frames per animation frame (slower = more frames between changes)
+        self.animation_speed = 8  # Adjusted speed for new click animation (lower = faster)
         self.animation_counter = 0
         self.animation_complete_callback = None
 
@@ -77,7 +99,8 @@ class PixelButton:
         # Load button image if provided
         if image_path:
             try:
-                self.button_image = pygame.image.load(image_path)
+                # Force reload by creating a new Surface
+                self.button_image = pygame.image.load(image_path).convert_alpha()
                 # Scale the image to fit the button size
                 self.button_image = pygame.transform.scale(self.button_image, (width, height))
             except pygame.error:
@@ -85,34 +108,43 @@ class PixelButton:
                 self.button_image = None
 
         # Load animation frames
-        for i, frame_path in enumerate(self.animation_frames):
+        animation_frames_copy = self.animation_frames.copy()  # Create a copy to avoid modifying the original array
+        self.animation_frames = []  # Clear the array
+        for frame_path in animation_frames_copy:
             try:
-                frame_img = pygame.image.load(frame_path)
+                # Force reload by creating a new Surface
+                frame_img = pygame.image.load(frame_path).convert_alpha()
                 frame_img = pygame.transform.scale(frame_img, (width, height))
-                self.animation_frames[i] = frame_img
+                self.animation_frames.append(frame_img)
             except pygame.error:
                 print(f"Warning: Could not load animation frame '{frame_path}'")
-                self.animation_frames[i] = None
+                self.animation_frames.append(None)
 
         # Load idle animation frames
-        for i, frame_path in enumerate(self.idle_animation_frames):
+        idle_animation_frames_copy = self.idle_animation_frames.copy()  # Create a copy to avoid modifying the original array
+        self.idle_animation_frames = []  # Clear the array
+        for frame_path in idle_animation_frames_copy:
             try:
-                frame_img = pygame.image.load(frame_path)
+                # Force reload by creating a new Surface
+                frame_img = pygame.image.load(frame_path).convert_alpha()
                 frame_img = pygame.transform.scale(frame_img, (width, height))
-                self.idle_animation_frames[i] = frame_img
+                self.idle_animation_frames.append(frame_img)
             except pygame.error:
                 print(f"Warning: Could not load idle animation frame '{frame_path}'")
-                self.idle_animation_frames[i] = None
+                self.idle_animation_frames.append(None)
 
         # Load hover animation frames
-        for i, frame_path in enumerate(self.hover_animation_frames):
+        hover_animation_frames_copy = self.hover_animation_frames.copy()  # Create a copy to avoid modifying the original array
+        self.hover_animation_frames = []  # Clear the array
+        for frame_path in hover_animation_frames_copy:
             try:
-                frame_img = pygame.image.load(frame_path)
+                # Force reload by creating a new Surface
+                frame_img = pygame.image.load(frame_path).convert_alpha()
                 frame_img = pygame.transform.scale(frame_img, (width, height))
-                self.hover_animation_frames[i] = frame_img
+                self.hover_animation_frames.append(frame_img)
             except pygame.error:
                 print(f"Warning: Could not load hover animation frame '{frame_path}'")
-                self.hover_animation_frames[i] = None
+                self.hover_animation_frames.append(None)
 
         # Pre-render our pixel font text (fallback if no image)
         if not self.button_image and not self.animation_frames:
@@ -196,175 +228,17 @@ class PixelButton:
         return True  # Hover animation updated
 
     def create_pixel_text(self, text):
-        # This is a simplified pixel font renderer
-        # In a full implementation, you'd have a proper pixel font system
-        letter_spacing = 10
-        letter_height = 30
-        letter_width = 20
-
-        # Create a surface for the entire text
-        text_width = len(text) * (letter_width + letter_spacing)
-        text_surface = pygame.Surface((text_width, letter_height), pygame.SRCALPHA)
-
-        # Draw each letter (very simplified)
-        x_pos = 0
-        for char in text:
-            if char == 'S':
-                self.draw_pixel_S(text_surface, x_pos, 0)
-            elif char == 'T':
-                self.draw_pixel_T(text_surface, x_pos, 0)
-            elif char == 'A':
-                self.draw_pixel_A(text_surface, x_pos, 0)
-            elif char == 'R':
-                self.draw_pixel_R(text_surface, x_pos, 0)
-            elif char == 'E':
-                self.draw_pixel_E(text_surface, x_pos, 0)
-            elif char == 'X':
-                self.draw_pixel_X(text_surface, x_pos, 0)
-            elif char == 'I':
-                self.draw_pixel_I(text_surface, x_pos, 0)
-            elif char == 'C':
-                self.draw_pixel_C(text_surface, x_pos, 0)
-            elif char == 'K':
-                self.draw_pixel_K(text_surface, x_pos, 0)
-            elif char == 'M':
-                self.draw_pixel_M(text_surface, x_pos, 0)
-            elif char == 'U':
-                self.draw_pixel_U(text_surface, x_pos, 0)
-            elif char == 'N':
-                self.draw_pixel_N(text_surface, x_pos, 0)
-
-            x_pos += letter_width + letter_spacing
+        """Create a surface with text rendered using the loaded font"""
+        # Use the medium font for button text
+        try:
+            # Try to use the loaded font
+            text_surface = font_medium.render(text, True, BEIGE)
+        except:
+            # Fallback to system font if there's an issue
+            fallback_font = pygame.font.SysFont("Arial", 24)
+            text_surface = fallback_font.render(text, True, BEIGE)
 
         return text_surface
-
-    # Functions to draw pixel letters (keeping all the original letter drawing functions)
-    def draw_pixel_S(self, surface, x, y):
-        pixels = [
-            (1, 0), (2, 0), (3, 0),
-            (0, 1),
-            (1, 2), (2, 2),
-            (3, 3),
-            (0, 4), (1, 4), (2, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_T(self, surface, x, y):
-        pixels = [
-            (0, 0), (1, 0), (2, 0), (3, 0), (4, 0),
-            (2, 1), (2, 2), (2, 3), (2, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_A(self, surface, x, y):
-        pixels = [
-            (1, 0), (2, 0),
-            (0, 1), (3, 1),
-            (0, 2), (1, 2), (2, 2), (3, 2),
-            (0, 3), (3, 3),
-            (0, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_R(self, surface, x, y):
-        pixels = [
-            (0, 0), (1, 0), (2, 0),
-            (0, 1), (3, 1),
-            (0, 2), (1, 2), (2, 2),
-            (0, 3), (2, 3),
-            (0, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_E(self, surface, x, y):
-        pixels = [
-            (0, 0), (1, 0), (2, 0), (3, 0),
-            (0, 1),
-            (0, 2), (1, 2), (2, 2),
-            (0, 3),
-            (0, 4), (1, 4), (2, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_X(self, surface, x, y):
-        pixels = [
-            (0, 0), (3, 0),
-            (1, 1), (2, 1),
-            (1, 2),
-            (1, 3), (2, 3),
-            (0, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_I(self, surface, x, y):
-        pixels = [
-            (0, 0), (1, 0), (2, 0),
-            (1, 1), (1, 2), (1, 3),
-            (0, 4), (1, 4), (2, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_C(self, surface, x, y):
-        pixels = [
-            (1, 0), (2, 0), (3, 0),
-            (0, 1),
-            (0, 2),
-            (0, 3),
-            (1, 4), (2, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_K(self, surface, x, y):
-        pixels = [
-            (0, 0), (3, 0),
-            (0, 1), (2, 1),
-            (0, 2), (1, 2),
-            (0, 3), (2, 3),
-            (0, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_M(self, surface, x, y):
-        pixels = [
-            (0, 0), (1, 0), (2, 0), (3, 0), (4, 0),
-            (0, 1), (2, 1), (4, 1),
-            (0, 2), (4, 2),
-            (0, 3), (4, 3),
-            (0, 4), (4, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_U(self, surface, x, y):
-        pixels = [
-            (0, 0), (3, 0),
-            (0, 1), (3, 1),
-            (0, 2), (3, 2),
-            (0, 3), (3, 3),
-            (1, 4), (2, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
-
-    def draw_pixel_N(self, surface, x, y):
-        pixels = [
-            (0, 0), (3, 0),
-            (0, 1), (1, 1), (3, 1),
-            (0, 2), (2, 2), (3, 2),
-            (0, 3), (3, 3),
-            (0, 4), (3, 4)
-        ]
-        for px, py in pixels:
-            pygame.draw.rect(surface, BEIGE, (x + px * 4, y + py * 6, 4, 6))
 
     def draw(self, surface):
         # Update animations
@@ -464,11 +338,15 @@ class PixelButton:
 
 
 def draw_menu():
-    # Background with gradient
-    for y in range(HEIGHT):
-        # Create a gradient from dark blue to light blue
-        color_value = int(y / HEIGHT * 155) + 100
-        pygame.draw.line(SCREEN, (0, 0, color_value), (0, y), (WIDTH, y))
+    # Display background image if available
+    if menu_bg is not None:
+        SCREEN.blit(menu_bg, (0, 0))
+    else:
+        # Fallback to gradient if background image is not available
+        for y in range(HEIGHT):
+            # Create a gradient from dark blue to light blue
+            color_value = int(y / HEIGHT * 155) + 100
+            pygame.draw.line(SCREEN, (0, 0, color_value), (0, y), (WIDTH, y))
 
     # Display logo if available
     if logo is not None:
@@ -534,9 +412,90 @@ def game_loop():
         clock.tick(60)
 
 
+def show_intro_message():
+    """Shows the intro message with typing animation effect using custom fonts"""
+    message = "There was a student who was given a task by his professor to do a project, but he ended up in another dimension. Let's follow this student's journey"
+
+    clock = pygame.time.Clock()
+    running = True
+    displayed_chars = 0
+    typing_speed = 1  # Characters per frame
+    typing_complete = False
+
+
+    # Use the custom font for the message
+    message_font = font_medium
+    continue_font = font_small
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            # Skip animation if any key is pressed
+            if event.type == pygame.KEYDOWN:
+                if typing_complete:
+                    return  # Proceed to game
+                else:
+                    displayed_chars = len(message)  # Show full message
+
+        # Clear screen with black background
+        SCREEN.fill(BLACK)
+
+        # Update typing animation
+        if displayed_chars < len(message):
+            displayed_chars += typing_speed
+            if displayed_chars >= len(message):
+                typing_complete = True
+                displayed_chars = len(message)
+
+        # Render the message
+        current_text = message[:displayed_chars]
+
+        # Split text into multiple lines if needed
+        max_width = WIDTH - 100  # Width for text wrapping
+        lines = []
+        words = current_text.split(' ')
+        current_line = words[0] if words else ""
+
+        for word in words[1:]:
+            test_line = current_line + " " + word
+            # Create a temporary text surface to check width
+            test_surface = message_font.render(test_line, True, WHITE)
+            if test_surface.get_width() <= max_width:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+
+        lines.append(current_line)
+
+        # Draw text lines
+        line_height = message_font.get_linesize() + 5  # Add a little extra spacing between lines
+        y_pos = HEIGHT // 2 - (len(lines) * line_height) // 2
+
+        for line in lines:
+            # Create text surface for each line
+            text_surface = message_font.render(line, True, WHITE)
+            text_rect = text_surface.get_rect(center=(WIDTH // 2, y_pos))
+            SCREEN.blit(text_surface, text_rect)
+            y_pos += line_height
+
+        # Show "Press any key to continue" when typing is complete
+        if typing_complete:
+            continue_text = continue_font.render("Press any key to continue", True, WHITE)
+            continue_rect = continue_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+            SCREEN.blit(continue_text, continue_rect)
+
+        pygame.display.flip()
+        clock.tick(60)
+
 def on_start_animation_complete():
     """Called when the start button animation completes"""
-    print("Start button animation completed! Starting game...")
+    print("Start button animation completed! Showing intro message...")
+    show_intro_message()
+    print("Intro message complete! Starting game...")
     game_loop()
 
 
@@ -576,7 +535,7 @@ def main_menu():
         clock.tick(60)
 
 
-# Updated animation frames - using your new start button images
+# Updated animation frames - using the latest click button images
 start_animation_frames = [
     "Images/StartButtonPNG/Click/ClickStartButtonPNG1.png",  # Frame 1
     "Images/StartButtonPNG/Click/ClickStartButtonPNG2.png",  # Frame 2
@@ -606,13 +565,13 @@ button_width = 400
 button_height = 120
 
 # Start button with idle image, click animation frames, idle animation frames, and hover animation frames
-start_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 100,
+start_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 60,
                            button_width, button_height, "START",
-                           "Images/StartButtonPNG/Idle/IdleStartButtonPNG1.png", 
+                           "Images/StartButtonPNG/Idle/IdleStartButtonPNG1.png",
                            start_animation_frames, idle_animation_frames, hover_animation_frames)
 
 # Exit button with image (using existing EXIT button image)
-exit_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 100 + button_height + 20,
+exit_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 60 + button_height + 20,
                           button_width, button_height, "EXIT", "Images/EXIT_BUTTON.png")
 
 # Back to menu button (for game screen) - no image, uses original style
