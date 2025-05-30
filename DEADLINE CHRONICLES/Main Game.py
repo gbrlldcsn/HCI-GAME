@@ -1,6 +1,7 @@
 import pygame
 import sys
 import os
+import time
 
 # Initialize pygame
 pygame.init()
@@ -170,16 +171,21 @@ class PixelButton:
         if self.animation_counter >= self.animation_speed:
             self.animation_counter = 0
             self.current_frame += 1
+            print(f"Animation frame: {self.current_frame}/{len(self.animation_frames)} for {self.text} button")
 
             if self.current_frame >= len(self.animation_frames):
                 # Animation complete
                 self.is_animating = False
                 self.current_frame = 0
+                print(f"Animation complete for {self.text} button")
 
                 # Call callback if provided
                 if self.animation_complete_callback:
+                    print(f"Calling animation complete callback for {self.text} button")
                     self.animation_complete_callback()
                     self.animation_complete_callback = None
+                else:
+                    print(f"No animation complete callback for {self.text} button")
 
                 return True  # Animation finished
 
@@ -419,7 +425,7 @@ def show_intro_message():
     clock = pygame.time.Clock()
     running = True
     displayed_chars = 0
-    typing_speed = 1  # Characters per frame
+    typing_speed = 1 # Characters per frame
     typing_complete = False
 
 
@@ -498,6 +504,21 @@ def on_start_animation_complete():
     print("Intro message complete! Starting game...")
     game_loop()
 
+def on_exit_animation_complete():
+    """Called when the exit button animation completes"""
+    print("Exit button animation completed! Exiting game...")
+    print("Calling pygame.quit()...")
+    pygame.quit()
+    print("Calling sys.exit()...")
+    try:
+        sys.exit()
+    except:
+        print("sys.exit() failed, trying os._exit()...")
+        # Add a small delay to ensure all print statements are flushed
+        time.sleep(0.5)
+        os._exit(0)
+    print("This line should never be reached!")
+
 
 def main_menu():
     clock = pygame.time.Clock()
@@ -520,8 +541,8 @@ def main_menu():
 
             if exit_button.is_clicked(event):
                 print("Exit button clicked!")
-                pygame.quit()
-                sys.exit()
+                # Start the click animation instead of immediately exiting
+                exit_button.start_click_animation(on_exit_animation_complete)
 
         # Check hover states
         start_button.check_hover(mouse_pos)
@@ -570,9 +591,53 @@ start_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 60,
                            "Images/StartButtonPNG/Idle/IdleStartButtonPNG1.png",
                            start_animation_frames, idle_animation_frames, hover_animation_frames)
 
-# Exit button with image (using existing EXIT button image)
+# Create exit button animation frames arrays
+# Check if the files exist before adding them to the arrays
+exit_idle_animation_frames = []
+for i in range(1, 78):
+    file_path = f"Images/ExitButtonPng/Idle/ExitPngIdle{i}.png"
+    if os.path.exists(file_path):
+        exit_idle_animation_frames.append(file_path)
+    else:
+        print(f"Warning: Exit button idle animation frame {i} not found: {file_path}")
+
+exit_hover_animation_frames = []
+for i in range(1, 78):
+    file_path = f"Images/ExitButtonPng/Hover/ExitPngHover{i}.png"
+    if os.path.exists(file_path):
+        exit_hover_animation_frames.append(file_path)
+    else:
+        print(f"Warning: Exit button hover animation frame {i} not found: {file_path}")
+
+# Use only 5 frames for click animation to make it complete faster
+exit_click_animation_frames = []
+for i in range(1, 6):
+    file_path = f"Images/ExitButtonPng/Click/ExitPngClick{i}.png"
+    if os.path.exists(file_path):
+        exit_click_animation_frames.append(file_path)
+    else:
+        print(f"Warning: Exit button click animation frame {i} not found: {file_path}")
+
+# Ensure we have at least one frame for each animation
+if not exit_idle_animation_frames:
+    print("Error: No exit button idle animation frames found!")
+    exit_idle_animation_frames = ["Images/ExitButtonPng/Idle/ExitPngIdle1.png"]  # Fallback
+
+if not exit_hover_animation_frames:
+    print("Error: No exit button hover animation frames found!")
+    exit_hover_animation_frames = ["Images/ExitButtonPng/Hover/ExitPngHover1.png"]  # Fallback
+
+if not exit_click_animation_frames:
+    print("Error: No exit button click animation frames found!")
+    exit_click_animation_frames = ["Images/ExitButtonPng/Click/ExitPngClick1.png"]  # Fallback
+
+# Exit button with idle, hover, and click animations
 exit_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 60 + button_height + 20,
-                          button_width, button_height, "EXIT", "Images/EXIT_BUTTON.png")
+                          button_width, button_height, "EXIT", 
+                          "Images/ExitButtonPng/Idle/ExitPngIdle1.png",
+                          exit_click_animation_frames, exit_idle_animation_frames, exit_hover_animation_frames)
+# Set a faster animation speed for the exit button to ensure the animation completes quickly
+exit_button.animation_speed = 4  # Faster than the default of 8
 
 # Back to menu button (for game screen) - no image, uses original style
 back_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT - 150,
