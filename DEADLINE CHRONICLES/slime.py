@@ -4,7 +4,7 @@ import random
 pygame.init()
 from pygame import mixer
 
-# Global Constants
+
 SCREEN_HEIGHT = 720
 SCREEN_WIDTH = 1280
 SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -29,15 +29,23 @@ CLOUD = pygame.image.load(os.path.join("Assets/Other", "Cloud.png"))
 BG = pygame.image.load(os.path.join("Assets/Other", "grass.png"))
 
 JUMP_SFX = pygame.mixer.Sound(os.path.join("Assets/sounds", "jump.wav"))
-JUMP_SFX.set_volume(0.5)
+JUMP_SFX.set_volume(1)
 
 DEATH_SFX = pygame.mixer.Sound(os.path.join("Assets/sounds", "die.wav"))
-DEATH_SFX.set_volume(0.5)
+DEATH_SFX.set_volume(1)
+
+COIN_SFX = pygame.mixer.Sound(os.path.join("Assets/sounds", "point.wav"))
+COIN_SFX.set_volume(1)
+
+BG_MUSIC_PATH = os.path.join("Assets/sounds", "western.mp3")
+DEATH_MUSIC_PATH = os.path.join("Assets/sounds", "death.mp3")
+MENU_MUSIC_PATH = os.path.join("Assets/sounds", "desert.mp3")
+VICTORY_MUSIC_PATH = os.path.join("Assets/sounds", "death.mp3")
+
+FONT_PATH = os.path.join('assets', 'font', 'PressStart2P-Regular.ttf')
 
 
-BG_MUSIC = mixer.music.load(os.path.join("Assets/sounds", "his_theme.mp3"))
-pygame.mixer.music.set_volume(0.1)
-mixer.music.play(-1)
+
 
 class Dinosaur:
     X_POS = 80
@@ -59,6 +67,7 @@ class Dinosaur:
         self.jump_vel = self.JUMP_VEL
         self.image = self.run_img[0]
         self.dino_rect = self.image.get_rect()
+
         self.dino_rect.x = self.X_POS
         self.dino_rect.y = self.Y_POS
         self.hitbox = pygame.Rect(self.dino_rect.x + 12, self.dino_rect.y + 10, 40, 50)
@@ -110,11 +119,11 @@ class Dinosaur:
         self.dino_rect = self.image.get_rect()
         self.dino_rect.x = self.X_POS
         self.dino_rect.y = self.Y_POS
-        self.hitbox = pygame.Rect(self.dino_rect.x + 12, self.dino_rect.y + 9, 30, 40)
+        self.hitbox = pygame.Rect(self.dino_rect.x + 1, self.dino_rect.y + 9, 30, 40)
         self.step_index += 1
 
     def jump(self):
-        if self.dino_jump:
+        if self.jump_img:
             self.dino_rect.y -= self.jump_vel * 4
             self.jump_vel -= 1
 
@@ -122,7 +131,7 @@ class Dinosaur:
             self.dino_jump = False
             self.jump_vel = self.JUMP_VEL
 
-        self.hitbox = pygame.Rect(self.dino_rect.x + 12, self.dino_rect.y + 10, 33, 30)
+        self.hitbox = pygame.Rect(self.dino_rect.x + 10, self.dino_rect.y + 13, 50, 50)
 
     def draw(self, SCREEN):
         SCREEN.blit(self.image, (self.dino_rect.x, self.dino_rect.y))
@@ -171,6 +180,7 @@ class Background:
 
 
 class Obstacle:
+
     def __init__(self, image, type):
         self.image = image
         self.type = type
@@ -181,6 +191,7 @@ class Obstacle:
     def update(self):
         self.rect.x -= game_speed
         self.hitbox.x = self.rect.x + 5
+        self.hitbox.y = self.rect.y + 10
         if self.rect.x < -self.rect.width:
             obstacles.pop()
 
@@ -194,7 +205,7 @@ class SmallCactus(Obstacle):
         self.type = random.randint(0, 2)
         super().__init__(image, self.type)
         self.rect.y = 350
-        self.hitbox = pygame.Rect(self.rect.x + 100, self.rect.y + 5, self.rect.width - 15, self.rect.height - 10)
+        self.hitbox = pygame.Rect(self.rect.x + 5, self.rect.y + 10, self.rect.width - 10, self.rect.height - 10)
 
 
 class LargeCactus(Obstacle):
@@ -202,7 +213,7 @@ class LargeCactus(Obstacle):
         self.type = random.randint(0, 2)
         super().__init__(image, self.type)
         self.rect.y = 330
-        self.hitbox = pygame.Rect(self.rect.x + 100, self.rect.y + 5, self.rect.width - 10, self.rect.height - 10)
+        self.hitbox = pygame.Rect(self.rect.x + 5, self.rect.y + 10, self.rect.width - 10, self.rect.height - 10)
 
 
 class Bird(Obstacle):
@@ -211,7 +222,14 @@ class Bird(Obstacle):
         super().__init__(image, self.type)
         self.rect.y = 280
         self.index = 0
-        self.hitbox = pygame.Rect(self.rect.x + 5, self.rect.y + 5, self.rect.width - 8, self.rect.height - 8)
+        self.hitbox = pygame.Rect(self.rect.x + 10, self.rect.y + 35, 50, 60)
+
+    def update(self):
+        self.rect.x -= game_speed
+        self.hitbox.x = self.rect.x + 50
+        self.hitbox.y = self.rect.y + 10
+        if self.rect.x < -self.rect.width:
+            obstacles.pop()
 
     def draw(self, SCREEN):
         if self.index >= 9:
@@ -220,20 +238,17 @@ class Bird(Obstacle):
         pygame.draw.rect(SCREEN, (255, 0, 0), self.hitbox, 2)
         self.index += 1
 
+
 class Coin:
     def __init__(self, obstacle):
         self.image = pygame.image.load(os.path.join("Assets/BG", "bulb.png"))
         self.rect = self.image.get_rect()
-
-        # Position the coin relative to obstacle
         self.rect.x = obstacle.rect.x + obstacle.rect.width // 2 - self.image.get_width() // 2
 
-        # Randomly choose to place on top or below
-        if random.choice([True, False]):
-            self.rect.y = obstacle.rect.y - self.image.get_height() - 20 # on top
+        if obstacle.rect.y == 280:
+            self.rect.y = obstacle.rect.y + obstacle.rect.height + 10
         else:
-            self.rect.y = obstacle.rect.y + obstacle.rect.height + 10    # underneath
-
+            self.rect.y = obstacle.rect.y - self.image.get_height() - 50
         self.collected = False
 
     def update(self):
@@ -242,13 +257,28 @@ class Coin:
     def draw(self, screen):
         if not self.collected:
             screen.blit(self.image, self.rect)
-            pygame.draw.rect(screen, (255, 215, 0), self.rect, 1)  # optional: outline
+            pygame.draw.rect(screen, (255, 215, 0), self.rect, 1)
 
+
+def load_highscore():
+    try:
+        with open("highscore.txt", "r") as f:
+            return int(f.read())
+    except:
+        return 0
+
+def save_highscore(score):
+    with open("highscore.txt", "w") as f:
+        f.write(str(score))
 
 
 def main():
     global game_speed, x_pos_bg, y_pos_bg, points, obstacles
     run = True
+    mixer.music.load(BG_MUSIC_PATH)
+    mixer.music.set_volume(0.5)
+    mixer.music.play(-1)
+
     clock = pygame.time.Clock()
     player = Dinosaur()
     cloud = Cloud()
@@ -260,18 +290,24 @@ def main():
     font = pygame.font.Font('freesansbold.ttf', 20)
     obstacles = []
     death_count = 0
+
     coins = []
     collected_coins = 0
-    next_coin_spawn_score = 1000
+    next_coin_spawn_score = 300
+    coins_spawned_for_score = False
+
     death_sfx = DEATH_SFX
+    point_sfx = COIN_SFX
 
     def score():
         global points, game_speed
         points += 1
         if points % 100 == 0:
             game_speed += 1
-        text = font.render("Points: " + str(points), True, (0, 0, 0))
-        coin_text = font.render("Coins: " + str(collected_coins), True, (255, 215, 0))
+
+        score_font = pygame.font.Font(FONT_PATH, 20)  # Use same custom font for consistency
+        text = score_font.render("Score: " + str(points), True, (0, 0, 0))
+        coin_text = score_font.render("Ideas: " + str(collected_coins), True, (255, 215, 0))
         SCREEN.blit(coin_text, (1000, 70))
         SCREEN.blit(text, (1000, 40))
 
@@ -288,6 +324,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+
 
         SCREEN.fill((255, 255, 255))
         userInput = pygame.key.get_pressed()
@@ -308,30 +345,94 @@ def main():
             else:
                 obstacles.append(Bird(BIRD))
 
-        if points >= next_coin_spawn_score and collected_coins < 999:
-            if obstacles:
-                obstacle = random.choice(obstacles)
-                coin = Coin(obstacle)
-                coins.append(coin)
-                next_coin_spawn_score += 100
 
 
         for obstacle in obstacles:
             obstacle.draw(SCREEN)
             obstacle.update()
             if player.hitbox.colliderect(obstacle.hitbox):
+                mixer.music.stop()
                 death_sfx.play()
-                pygame.time.delay(1000)
+                mixer.music.load(DEATH_MUSIC_PATH)
+                mixer.music.set_volume(0.5)
+                mixer.music.play()
+                font = pygame.font.Font(FONT_PATH, 50)
+                game_over_text = font.render("GAME OVER!", True, (255, 0, 0))
+                SCREEN.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2,
+                                             SCREEN_HEIGHT // 3 - game_over_text.get_height() // 3))
+                pygame.display.update()
+                pygame.time.delay(4000)
+
                 death_count += 1
+                if points > load_highscore():
+                    save_highscore(points)
+
                 menu(death_count)
 
+        if points >= next_coin_spawn_score and not coins_spawned_for_score:
+            if obstacles:
+                for _ in range(1):
+                    obstacle = random.choice(obstacles)
+                    coins.append(Coin(obstacle))
+                coins_spawned_for_score = True
 
+        active_coins = 0
         for coin in coins:
             coin.update()
             coin.draw(SCREEN)
             if not coin.collected and player.dino_rect.colliderect(coin.rect):
+                point_sfx.play()
                 coin.collected = True
                 collected_coins += 1
+            if not coin.collected and coin.rect.right > 0:
+                active_coins += 1
+
+        if collected_coins == 5:
+            mixer.music.stop()
+            mixer.music.load(VICTORY_MUSIC_PATH)
+            mixer.music.set_volume(0.5)
+            mixer.music.play()
+            font = pygame.font.Font(FONT_PATH, 50)
+            victory_text = font.render("VICTORY!", True, (0, 200, 0))
+            SCREEN.blit(victory_text, (SCREEN_WIDTH // 2 - victory_text.get_width() // 2,
+                                       SCREEN_HEIGHT // 3 - victory_text.get_height() // 2))
+
+            option_font = pygame.font.Font(FONT_PATH, 20)
+            continue_text = option_font.render("Press C to Continue", True, (0, 0, 0))
+            menu_text = option_font.render("Press M for Menu", True, (0, 0, 0))
+            SCREEN.blit(continue_text, (SCREEN_WIDTH // 2 - continue_text.get_width() // 2, SCREEN_HEIGHT // 2 + 30))
+            SCREEN.blit(menu_text, (SCREEN_WIDTH // 2 - menu_text.get_width() // 2, SCREEN_HEIGHT // 2 + 70))
+
+            pygame.display.update()
+
+            waiting = True
+            while waiting:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        waiting = False
+                        run = False
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_c:
+                            collected_coins = 0
+                            coins.clear()
+                            mixer.music.load(BG_MUSIC_PATH)
+                            mixer.music.set_volume(0.5)
+                            mixer.music.play(-1)
+                            waiting = False
+
+                        elif event.key == pygame.K_m:
+                            menu(death_count)
+                            waiting = False
+                            return
+
+        if coins_spawned_for_score and active_coins == 0:
+            next_coin_spawn_score += 300
+            coins_spawned_for_score = False
+            coins.clear()
+
+
+
 
         cloud.draw(SCREEN)
         cloud.update()
@@ -344,27 +445,61 @@ def main():
 def menu(death_count):
     global points
     run = True
+    mixer.music.load(MENU_MUSIC_PATH)
+    mixer.music.set_volume(0.5)
+    mixer.music.play(-1)
+
+    highscore = load_highscore()
+    clock = pygame.time.Clock()
+    step_index = 0
+
+    font = pygame.font.Font(FONT_PATH, 20)
+
     while run:
         SCREEN.fill((255, 255, 255))
-        font = pygame.font.Font('freesansbold.ttf', 30)
+
+
+        title = font.render("THE BRAINSTORMING DUNGEON!", True, (0, 0, 0))
+        SCREEN.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, SCREEN_HEIGHT // 2 - 190))
+
 
         if death_count == 0:
-            text = font.render("Press any Key to Start", True, (0, 0, 0))
+            start_text = font.render("Press Enter to Start", True, (0, 0, 0))
         else:
-            text = font.render("Press any Key to Restart", True, (0, 0, 0))
-            score = font.render("Your Score: " + str(points), True, (0, 0, 0))
-            SCREEN.blit(score, (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 50))
+            start_text = font.render("Press Enter to Restart", True, (0, 0, 0))
+            score = font.render(f"Your Score: {points}", True, (0, 0, 0))
+            SCREEN.blit(score, (SCREEN_WIDTH // 2 - score.get_width() // 2, SCREEN_HEIGHT // 2 + 70))
 
-        SCREEN.blit(text, (SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2))
-        SCREEN.blit(RUNNING[0], (SCREEN_WIDTH // 2 - 20, SCREEN_HEIGHT // 2 - 140))
+
+        highscore_text = font.render(f"High Score: {highscore}", True, (0, 128, 0))
+        exit_text = font.render("Press Esc to Exit", True, (0, 0, 0))
+
+        SCREEN.blit(start_text, (SCREEN_WIDTH // 2 - start_text.get_width() // 2, SCREEN_HEIGHT // 2))
+        SCREEN.blit(exit_text, (SCREEN_WIDTH // 2 - exit_text.get_width() // 2, SCREEN_HEIGHT // 2 + 40))
+        SCREEN.blit(highscore_text, (SCREEN_WIDTH // 2 - highscore_text.get_width() // 2, SCREEN_HEIGHT // 2 - 60))
+
+
+        SCREEN.blit(RUNNING[step_index // 5], (SCREEN_WIDTH // 2 - 20, SCREEN_HEIGHT // 2 - 140))
+        step_index += 1
+        if step_index >= 10:
+            step_index = 0
+
         pygame.display.update()
+        clock.tick(30)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 run = False
             if event.type == pygame.KEYDOWN:
-                main()
+                if event.key == pygame.K_RETURN:
+                    mixer.music.stop()
+                    main()
+                elif event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    run = False
+
+
 
 
 menu(death_count=0)
