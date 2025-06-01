@@ -184,7 +184,7 @@ class Background:
 class Menu_Background:
     def __init__(self):
 
-        self.bgmenu = MENU_BG
+        self.bgmenu = pygame.image.load(os.path.join("Images/Menu_Background", "ComLab2_Temp1.png"))
         self.image_width = self.bgmenu.get_width()
         self.x1 = 0
         self.x2 = self.image_width
