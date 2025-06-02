@@ -125,7 +125,8 @@ class Dinosaur:
         self.step_index += 1
 
     def jump(self):
-        if self.jump_img:
+        self.image = self.jump_img
+        if self.image:
             self.dino_rect.y -= self.jump_vel * 4
             self.jump_vel -= 1
 
@@ -167,7 +168,7 @@ class Background:
         self.image_width = self.image.get_width()
         self.x1 = 0
         self.x2 = self.image_width
-        self.y = 5
+        self.y = 0
 
     def update(self):
         self.x1 -= game_speed // 4
@@ -238,13 +239,13 @@ class Bird(Obstacle):
     def __init__(self, image):
         self.type = 0
         super().__init__(image, self.type)
-        self.rect.y = 280
+        self.rect.y = 300
         self.index = 0
-        self.hitbox = pygame.Rect(self.rect.x + 10, self.rect.y + 35, 50, 60)
+        self.hitbox = pygame.Rect(self.rect.x + 10, self.rect.y + 35, 80, 50)
 
     def update(self):
         self.rect.x -= game_speed
-        self.hitbox.x = self.rect.x + 50
+        self.hitbox.x = self.rect.x + 10
         self.hitbox.y = self.rect.y + 10
         if self.rect.x < -self.rect.width:
             obstacles.pop()
@@ -253,7 +254,7 @@ class Bird(Obstacle):
         if self.index >= 9:
             self.index = 0
         SCREEN.blit(self.image[self.index // 5], self.rect)
-        #pygame.draw.rect(SCREEN, (255, 0, 0), self.hitbox, 2)
+        # pygame.draw.rect(SCREEN, (255, 0, 0), self.hitbox, 2)
         self.index += 1
 
 
@@ -407,7 +408,7 @@ def main():
             if not coin.collected and coin.rect.right > 0:
                 active_coins += 1
 
-        if collected_coins == 1:
+        if collected_coins == 5:
             mixer.music.stop()
             mixer.music.load(VICTORY_MUSIC_PATH)
             mixer.music.set_volume(0.5)
