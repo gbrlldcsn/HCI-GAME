@@ -3,6 +3,8 @@ import sys
 import os
 import random
 import math
+# Import the introduction module
+from INTRODUCTION import main as introduction_main
 
 # Initialize pygame
 pygame.init()
@@ -412,6 +414,10 @@ def story_screen():
             # or speed up the animation if it's still in progress
             if event.type == pygame.KEYDOWN:
                 if animation_complete:
+                    # Instead of returning, directly call introduction_main()
+                    # This ensures the story screen text is removed before showing the introduction
+                    from INTRODUCTION import main as introduction_main
+                    introduction_main()
                     return
                 else:
                     # Complete the animation immediately
@@ -672,9 +678,9 @@ def main_menu():
             if start_clicked_time <= 0:
                 # Animation finished, execute action
                 start_clicked_time = 0
-                # Show story screen first
+                # Show story screen first (which will transition to introduction screen)
                 story_screen()
-                # Then transition to game window
+                # Finally transition to game window
                 game_loop()
 
         if exit_clicked_time > 0:
