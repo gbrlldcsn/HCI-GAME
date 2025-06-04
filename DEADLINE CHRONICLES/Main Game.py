@@ -71,24 +71,55 @@ except pygame.error:
 try:
     logo_img = pygame.image.load('Images\\DEADLINE_CHRONICLES.png')
     # Scale the logo if needed (adjust the size as appropriate for your screen)
-    logo_img = pygame.transform.scale(logo_img, (700, 450))
+    logo_img = pygame.transform.scale(logo_img, (580, 300))
 except pygame.error:
     print("Warning: Could not load logo image 'Images\\DEADLINE_CHRONICLES.png'")
     logo_img = None
 
+# --- Background Panning Variables ---
+menu_bg_img = None
+original_menu_bg_img = None  # Store the original loaded image
+bg_pan_offset_y = 0  # Current vertical offset for panning
+bg_pan_speed = 0.3  # How many pixels to move per frame
+bg_pan_direction = 1  # 1 for down, -1 for up
+can_bg_pan = False  # Flag to check if background can actually pan
+
 # Load menu background image
 try:
-    menu_bg_img = pygame.image.load('Images\\Menu_Background\\ComLab2_Temp1.png')
-    # Scale the background to fit the screen if needed
-    menu_bg_img = pygame.transform.scale(menu_bg_img, (WIDTH, HEIGHT))
+    original_menu_bg_img = pygame.image.load('Images\\Menu_Background\\ComLab2_Temp1.png').convert_alpha()
+
+    # Calculate scale factor to ensure it covers the screen while maintaining aspect ratio
+    # This ensures the image is at least as tall and wide as the screen
+    scale_w = WIDTH / original_menu_bg_img.get_width()
+    scale_h = HEIGHT / original_menu_bg_img.get_height()
+
+    # Choose the larger scale factor to ensure it covers the screen entirely
+    scale_factor = max(scale_w, scale_h)
+
+    new_width = int(original_menu_bg_img.get_width() * scale_factor)
+    new_height = int(original_menu_bg_img.get_height() * scale_factor)
+
+    menu_bg_img = pygame.transform.scale(original_menu_bg_img, (new_width, new_height))
+
+    # Check if the image is taller than the screen, allowing for vertical panning
+    if menu_bg_img.get_height() > HEIGHT:
+        can_bg_pan = True
+        print(f"Background scaled to: {new_width}x{new_height}. Panning enabled.")
+    else:
+        # If not taller, no need to pan, just center it or scale to fit
+        menu_bg_img = pygame.transform.scale(original_menu_bg_img, (WIDTH, HEIGHT))
+        print(f"Background scaled to: {WIDTH}x{HEIGHT}. Panning disabled (image not tall enough).")
+
+
 except pygame.error:
     print("Warning: Could not load background image 'Images\\Menu_Background\\ComLab2_Temp1.png'")
     menu_bg_img = None
+    can_bg_pan = False  # No image, no panning
 
 
 class PixelButton:
     def __init__(self, x, y, width, height, text, image_path=None, animation_base_path=None):
-        self.rect = pygame.Rect(x, y, width, height)    
+        self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.is_hovered = False
         self.is_clicked = False
@@ -143,6 +174,7 @@ class PixelButton:
             for i in range(1, 5):  # 4 frames for idle and hover
                 try:
                     idle_img = pygame.image.load(os.path.join(idle_path, f"IdleStartButtonPNG{i}.png"))
+                    # Scale to self.rect dimensions which are set in init
                     idle_img = pygame.transform.scale(idle_img, (self.rect.width, self.rect.height))
                     self.idle_frames.append(idle_img)
 
@@ -206,8 +238,7 @@ class PixelButton:
                     print(f"Warning: Could not load fallback button image '{self.image_path}'")
                     self.button_image = None
 
-
-    def update_animation(self, dt=1/60):
+    def update_animation(self, dt=1 / 60):
         """Update the animation frame based on the current state"""
         # Increment the animation timer
         self.animation_timer += dt
@@ -313,8 +344,26 @@ class PixelButton:
 
 
 def draw_menu():
-    # Display background image
-    if menu_bg_img is not None:
+    # Update background panning offset
+    global bg_pan_offset_y, bg_pan_direction
+
+    if menu_bg_img is not None and can_bg_pan:
+        bg_pan_offset_y += bg_pan_speed * bg_pan_direction
+
+        # Reverse direction if hitting boundaries
+        # Top boundary is 0. Bottom boundary is (image height - screen height).
+        if bg_pan_direction == 1 and bg_pan_offset_y >= (menu_bg_img.get_height() - HEIGHT):
+            bg_pan_direction = -1
+        elif bg_pan_direction == -1 and bg_pan_offset_y <= 0:
+            bg_pan_direction = 1
+
+        # Display background image with current offset
+        # The blit function draws the image. The second argument is the destination rectangle.
+        # We specify the top-left corner of the portion of the image we want to draw.
+        # The third argument is the source rectangle (x, y, width, height) from the image.
+        SCREEN.blit(menu_bg_img, (0, 0), (0, int(bg_pan_offset_y), WIDTH, HEIGHT))
+    elif menu_bg_img is not None:
+        # If panning is not possible (image not tall enough), just blit the scaled image
         SCREEN.blit(menu_bg_img, (0, 0))
     else:
         # Fallback to gradient if image isn't available
@@ -339,8 +388,11 @@ def draw_menu():
 
 
 def draw_game():
-    # Display background image
+    # Display background image (this could be a different background for the game)
+    # For now, it reuses the menu background, but you might want to change this.
     if menu_bg_img is not None:
+        # For game screen, let's just display the static background for simplicity
+        # Or you could implement panning for game background too, if desired.
         SCREEN.blit(menu_bg_img, (0, 0))
     else:
         # Fallback to black screen if image isn't available
@@ -393,7 +445,7 @@ def story_screen():
         lines.append(' '.join(current_line))
 
     # Animation variables
-    typing_speed = 0.05 # seconds per character
+    typing_speed = 0.05  # seconds per character
     typing_timer = 0
     displayed_chars = [0] * len(lines)  # Number of characters to display for each line
     animation_complete = False
@@ -434,7 +486,8 @@ def story_screen():
 
                 # Find the current line being typed
                 current_line_index = 0
-                while current_line_index < len(lines) and displayed_chars[current_line_index] >= len(lines[current_line_index]):
+                while current_line_index < len(lines) and displayed_chars[current_line_index] >= len(
+                        lines[current_line_index]):
                     current_line_index += 1
 
                 # If we have more lines to type
@@ -477,6 +530,7 @@ def story_screen():
 
         # Update display
         pygame.display.flip()
+
 
 def game_loop():
     """Main game loop - this is where your actual game logic would go"""
@@ -636,10 +690,11 @@ def shutdown_animation():
     # Small delay to show the black screen
     pygame.time.delay(300)
 
+
 def main_menu():
     clock = pygame.time.Clock()
     running = True
-    dt = 1/60  # Delta time for animation updates
+    dt = 1 / 60  # Delta time for animation updates
 
     # Variables to track button click animations
     start_clicked_time = 0
@@ -702,24 +757,29 @@ def main_menu():
 
 
 # Create buttons with pixel art style
-button_width = 350
-button_height = 120
+# Removed general button_width and button_height
+start_button_width = 291
+start_button_height = 104
+exit_button_width = 256
+exit_button_height = 78
 
-# Start button with animations
-start_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 70,
-                           button_width, button_height, "START", 
+
+# Start button with animations, using its specific dimensions
+start_button = PixelButton(WIDTH // 2 - start_button_width // 2, HEIGHT // 2 + 70,
+                           start_button_width, start_button_height, "START",
                            "Images\\START_BUTTON.png",  # Fallback image
                            "Images\\StartButtonPNG")  # Animation base path
 
-# Exit button with animations - positioned below the start button
-exit_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT // 2 + 200,
-                          button_width, button_height, "EXIT", 
+# Exit button with animations, using its specific dimensions
+exit_button = PixelButton(WIDTH // 2 - exit_button_width // 2, HEIGHT // 2 + 200,
+                          exit_button_width, exit_button_height, "EXIT",
                           "Images\\EXIT_BUTTON.png",  # Fallback image
                           "Images\\ExitButtonPng")  # Animation base path
 
 # Back to menu button (for game screen) - no image, uses original style
-back_button = PixelButton(WIDTH // 2 - button_width // 2, HEIGHT - 150,
-                          button_width, button_height, "BACK TO MENU")
+# You might want to define specific dimensions for this too if it's not a standard pixel button
+back_button = PixelButton(WIDTH // 2 - exit_button_width // 2, HEIGHT - 150,
+                          exit_button_width, exit_button_height, "BACK TO MENU")
 
 # Run the menu
 if __name__ == "__main__":

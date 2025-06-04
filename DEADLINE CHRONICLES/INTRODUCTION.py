@@ -6,6 +6,42 @@ import os
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
+class Introduction_Background:
+    def __init__(self, screen_width, screen_height):
+        try:
+            self.image = pygame.image.load('Images\\SPRITES\\MAP.png')
+            self.width, self.height = self.image.get_size()
+        except pygame.error:
+            print("Warning: Could not load background image 'Images\\SPRITES\\MAP.png'")
+            self.image = None
+            self.width, self.height = 0, 0
+
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.x = (screen_width - self.width) // 2
+        self.y = (screen_height - self.height) // 2
+        self.original_y = self.y
+
+        # Panning parameters
+        self.pan_speed = 0.5  # Speed of the panning effect
+        self.pan_direction = 1  # 1 for down, -1 for up
+        self.max_pan = 20  # Maximum distance to pan down
+        self.min_pan = -10  # Maximum distance to pan up
+
+    def update(self):
+        # Update the y position based on pan direction and speed
+        self.y = self.original_y + (self.pan_speed * self.pan_direction)
+
+        # Change direction when reaching the limits
+        if self.y >= self.original_y + self.max_pan:
+            self.pan_direction = -1
+        elif self.y <= self.original_y + self.min_pan:
+            self.pan_direction = 1
+
+    def draw(self, screen):
+        if self.image is not None:
+            screen.blit(self.image, (self.x, self.y))
+
 def main():
     # Get the screen from the main game
     SCREEN = pygame.display.get_surface()
@@ -16,15 +52,8 @@ def main():
     # Update the display immediately to ensure the screen is cleared
     pygame.display.flip()
 
-    # Load menu background image
-    try:
-        menu_bg_img = pygame.image.load('Images\\SPRITES\\MAP.png')
-        # Using original dimensions of the image without scaling
-        bg_width, bg_height = menu_bg_img.get_size()
-        print(f"Background image dimensions: {bg_width}x{bg_height}")
-    except pygame.error:
-        print("Warning: Could not load background image 'Images\\SPRITES\\MAP.png'")
-        menu_bg_img = None
+    # Create background object
+    background = Introduction_Background(WIDTH, HEIGHT)
 
     # Load collision layer image
     try:
@@ -50,25 +79,21 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
 
-        # Fill screen with background
-        if menu_bg_img is not None:
-            # Calculate position to center the image
-            img_width, img_height = menu_bg_img.get_size()
-            x = (WIDTH - img_width) // 2
-            y = (HEIGHT - img_height) // 2
-            SCREEN.blit(menu_bg_img, (x, y))
+        # Update and draw background
+        background.update()
+        background.draw(SCREEN)
 
-            # Draw collision layer on top of the background, scaled to match the MAP.png
-            if collision_layer_img is not None:
-                # Get the dimensions of the background image
-                bg_width, bg_height = menu_bg_img.get_size()
+        # Draw collision layer on top of the background
+        if collision_layer_img is not None and background.image is not None:
+            # Get the dimensions of the background image
+            bg_width, bg_height = background.width, background.height
 
-                # Scale the collision layer to match the background image dimensions
-                scaled_collision_layer = pygame.transform.scale(collision_layer_img, (bg_width, bg_height))
+            # Scale the collision layer to match the background image dimensions
+            scaled_collision_layer = pygame.transform.scale(collision_layer_img, (bg_width, bg_height))
 
-                # Position the scaled collision layer at the same position as the background
-                SCREEN.blit(scaled_collision_layer, (x, y))
-        else:
+            # Position the scaled collision layer at the same position as the background
+            SCREEN.blit(scaled_collision_layer, (background.x, background.y))
+        elif background.image is None:
             # Fallback to black background if image isn't available
             SCREEN.fill(BLACK)
 
