@@ -88,28 +88,18 @@ can_bg_pan = False  # Flag to check if background can actually pan
 try:
     original_menu_bg_img = pygame.image.load('Images\\Menu_Background\\ComLab2_Temp1.png').convert_alpha()
 
-    # Calculate scale factor to ensure it covers the screen while maintaining aspect ratio
-    # This ensures the image is at least as tall and wide as the screen
-    scale_w = WIDTH / original_menu_bg_img.get_width()
-    scale_h = HEIGHT / original_menu_bg_img.get_height()
-
-    # Choose the larger scale factor to ensure it covers the screen entirely
-    scale_factor = max(scale_w, scale_h)
-
-    new_width = int(original_menu_bg_img.get_width() * scale_factor)
-    new_height = int(original_menu_bg_img.get_height() * scale_factor)
+    # Fixed scaling approach
+    new_width = WIDTH
+    new_height = int(HEIGHT * 1.5)  # Make it 50% taller for panning
 
     menu_bg_img = pygame.transform.scale(original_menu_bg_img, (new_width, new_height))
 
-    # Check if the image is taller than the screen, allowing for vertical panning
-    if menu_bg_img.get_height() > HEIGHT:
-        can_bg_pan = True
+    # Enable panning only if the scaled image is taller than the screen
+    can_bg_pan = new_height > HEIGHT
+    if can_bg_pan:
         print(f"Background scaled to: {new_width}x{new_height}. Panning enabled.")
     else:
-        # If not taller, no need to pan, just center it or scale to fit
-        menu_bg_img = pygame.transform.scale(original_menu_bg_img, (WIDTH, HEIGHT))
-        print(f"Background scaled to: {WIDTH}x{HEIGHT}. Panning disabled (image not tall enough).")
-
+        print(f"Background scaled to: {WIDTH}x{HEIGHT}. Panning disabled.")
 
 except pygame.error:
     print("Warning: Could not load background image 'Images\\Menu_Background\\ComLab2_Temp1.png'")
@@ -173,21 +163,21 @@ class PixelButton:
             # Start button pattern
             for i in range(1, 5):  # 4 frames for idle and hover
                 try:
-                    idle_img = pygame.image.load(os.path.join(idle_path, f"IdleStartButtonPNG{i}.png"))
+                    idle_img = pygame.image.load(os.path.join(idle_path, f"MainStartButtonTrueIdle{i}.png"))
                     # Scale to self.rect dimensions which are set in init
                     idle_img = pygame.transform.scale(idle_img, (self.rect.width, self.rect.height))
                     self.idle_frames.append(idle_img)
 
-                    hover_img = pygame.image.load(os.path.join(hover_path, f"HoverStartButtonPNG{i}.png"))
+                    hover_img = pygame.image.load(os.path.join(hover_path, f"MainStartButtonTrueHover{i}.png"))
                     hover_img = pygame.transform.scale(hover_img, (self.rect.width, self.rect.height))
                     self.hover_frames.append(hover_img)
                 except pygame.error as e:
                     print(f"Warning: Could not load animation frame: {e}")
 
-            # 5 frames for click
-            for i in range(1, 6):
+            # 4 frames for click (not 5)
+            for i in range(1, 5):
                 try:
-                    click_img = pygame.image.load(os.path.join(click_path, f"ClickStartButtonPNG{i}.png"))
+                    click_img = pygame.image.load(os.path.join(click_path, f"MainStartButtonTrueClick{i}.png"))
                     click_img = pygame.transform.scale(click_img, (self.rect.width, self.rect.height))
                     self.click_frames.append(click_img)
                 except pygame.error as e:
@@ -468,7 +458,6 @@ def story_screen():
                 if animation_complete:
                     # Instead of returning, directly call introduction_main()
                     # This ensures the story screen text is removed before showing the introduction
-                    from INTRODUCTION import main as introduction_main
                     introduction_main()
                     return
                 else:
@@ -756,31 +745,38 @@ def main_menu():
         dt = clock.tick(60) / 1000  # Convert to seconds for animation timing
 
 
-# Create buttons with pixel art style
-# Removed general button_width and button_height
-start_button_width = 291
-start_button_height = 104
-exit_button_width = 256
-exit_button_height = 78
+# Define button dimensions
+start_button_width = 200
+start_button_height = 80
+exit_button_width = 200
+exit_button_height = 80
 
+# Define button animation paths
+start_animation_path = os.path.join("Images", "StartButtonPNG")
+exit_animation_path = os.path.join("Images", "ExitButtonPng")
 
-# Start button with animations, using its specific dimensions
-start_button = PixelButton(WIDTH // 2 - start_button_width // 2, HEIGHT // 2 + 70,
-                           start_button_width, start_button_height, "START",
-                           "Images\\START_BUTTON.png",  # Fallback image
-                           "Images\\StartButtonPNG")  # Animation base path
+# Create buttons with animations
+start_button = PixelButton(
+    WIDTH // 2 - start_button_width // 2, HEIGHT // 2 + 50,  # position
+    start_button_width, start_button_height,  # size
+    "START",
+    "Images\\START_BUTTON.png",  # Fallback image
+    start_animation_path  # Animation base path
+)
 
-# Exit button with animations, using its specific dimensions
-exit_button = PixelButton(WIDTH // 2 - exit_button_width // 2, HEIGHT // 2 + 200,
-                          exit_button_width, exit_button_height, "EXIT",
-                          "Images\\EXIT_BUTTON.png",  # Fallback image
-                          "Images\\ExitButtonPng")  # Animation base path
+exit_button = PixelButton(
+    WIDTH // 2 - exit_button_width // 2, HEIGHT // 2 + 150,  # position
+    exit_button_width, exit_button_height,  # size
+    "EXIT",
+    "Images\\EXIT_BUTTON.png",  # Fallback image
+    exit_animation_path  # Animation base path
+)
 
-# Back to menu button (for game screen) - no image, uses original style
-# You might want to define specific dimensions for this too if it's not a standard pixel button
-back_button = PixelButton(WIDTH // 2 - exit_button_width // 2, HEIGHT - 150,
-                          exit_button_width, exit_button_height, "BACK TO MENU")
+# Create back button for game screen (for game screen) - no image, uses original style
+back_button = PixelButton(
+    WIDTH // 2 - exit_button_width // 2, HEIGHT - 150,
+    exit_button_width, exit_button_height, "BACK TO MENU"
+)
 
-# Run the menu
 if __name__ == "__main__":
     main_menu()
