@@ -7,6 +7,19 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 
+class ComlabSprite(pygame.sprite.Sprite):
+    def __init__(self, image_path, x, y, width, height, name="ComlabSprite"):
+        super().__init__()
+        self.name = name
+        try:
+            image = pygame.image.load(image_path).convert_alpha()
+            image = pygame.transform.scale(image, (width, height))
+            self.image = image
+        except Exception:
+            self.image = pygame.Surface((width, height))
+            self.image.fill((255, 0, 0))
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.add_collision(sprite.rect.x, sprite.rect.y, sprite.rect.width, sprite.rect.height, name=sprite_file)
 
 class CameraGroup(pygame.sprite.Group):
     def __init__(self):
@@ -35,33 +48,30 @@ class CameraGroup(pygame.sprite.Group):
         self.offset.x = player.rect.centerx - self.viewport_width // 2
         self.offset.y = player.rect.centery - self.viewport_height // 2
 
-        # Y-sort sprites by their bottom edge for proper depth rendering
-        sprites_list = list(self.sprites())
-
-        # Separate background sprites from other sprites
-        background_sprites = [sprite for sprite in sprites_list if isinstance(sprite, Introduction_Background)]
-        other_sprites = [sprite for sprite in sprites_list if not isinstance(sprite, Introduction_Background)]
-
-        # Sort other sprites by their bottom Y coordinate (Y-sorting)
-        other_sprites.sort(key=lambda sprite: sprite.rect.bottom)
+        # Combine all sprites (including player and furniture) except background
+        draw_sprites = [sprite for sprite in self.sprites() if not isinstance(sprite, Introduction_Background)]
+        draw_sprites.sort(key=lambda s: s.rect.bottom)
 
         # Clear the viewport with black
         self.viewport.fill(BLACK)
 
         # Draw background first
-        for sprite in background_sprites:
+        for sprite in self.sprites():
+            if isinstance(sprite, Introduction_Background):
+                offset_rect = sprite.rect.copy()
+                offset_rect.topleft = (offset_rect.x - self.offset.x, offset_rect.y - self.offset.y)
+
+                # Only draw if visible in viewport
+                if (offset_rect.right > 0 and offset_rect.bottom > 0 and
+                        offset_rect.left < self.viewport_width and offset_rect.top < self.viewport_height):
+                    self.viewport.blit(sprite.image, offset_rect)
+
+        # Draw all other sprites Y-sorted
+        for sprite in draw_sprites:
             offset_rect = sprite.rect.copy()
             offset_rect.topleft = (offset_rect.x - self.offset.x, offset_rect.y - self.offset.y)
 
-            if (offset_rect.right > 0 and offset_rect.bottom > 0 and
-                    offset_rect.left < self.viewport_width and offset_rect.top < self.viewport_height):
-                self.viewport.blit(sprite.image, offset_rect)
-
-        # Draw other sprites with Y-sorting
-        for sprite in other_sprites:
-            offset_rect = sprite.rect.copy()
-            offset_rect.topleft = (offset_rect.x - self.offset.x, offset_rect.y - self.offset.y)
-
+            # Only draw if visible in viewport
             if (offset_rect.right > 0 and offset_rect.bottom > 0 and
                     offset_rect.left < self.viewport_width and offset_rect.top < self.viewport_height):
                 self.viewport.blit(sprite.image, offset_rect)
