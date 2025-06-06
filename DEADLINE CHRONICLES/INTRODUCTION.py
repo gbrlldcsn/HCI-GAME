@@ -99,20 +99,56 @@ class CollisionManager:
         self.setup_restaurant_collisions()
 
     def setup_restaurant_collisions(self):
-        """Create collision boxes for restaurant furniture based on the scaled layout"""
-        # Get the background dimensions and position
         bg_rect = self.background_sprite.rect
         bg_width = self.background_sprite.width
         bg_height = self.background_sprite.height
-
-        # Calculate the offset from the background's top-left corner
         offset_x = bg_rect.left
         offset_y = bg_rect.top
-
-        # Scale factor based on actual background size vs original coordinates
-        # Assuming original coordinates were based on a ~500x900 image
         scale_x = bg_width / 500.0
         scale_y = bg_height / 900.0
+
+        def scaled_collision(x, y, w, h, name):
+            scaled_x = int(x * scale_x) + offset_x
+            scaled_y = int(y * scale_y) + offset_y
+            scaled_w = int(w * scale_x)
+            scaled_h = int(h * scale_y)
+            self.add_collision(scaled_x, scaled_y, scaled_w, scaled_h, name)
+
+        # Existing boundaries
+        scaled_collision(0, 0, 50, bg_height, "LeftWall")
+        scaled_collision(bg_width - 50, 0, 50, bg_height, "RightWall")
+        scaled_collision(0, 0, bg_width, 100, "TopWall")
+        scaled_collision(0, bg_height - 50, bg_width, 50, "BottomWall")
+
+        # Existing tables
+        scaled_collision(300, 350, 120, 80, "MainTable")
+        scaled_collision(300, 480, 120, 60, "LowerTable")
+
+        # NEW FURNITURE ELEMENTS
+        scaled_collision(100, 200, 200, 40, "LONG_SIDE_COMPUTER_TABLE")
+        scaled_collision(350, 200, 100, 40, "SHORT_SIDE_COMPUTER_TABLE")
+        scaled_collision(100, 500, 100, 40, "WHITE_SHORT_SIDE_COMPUTER_TABLED")
+
+        def scaled_collision(x, y, w, h, name):
+            scaled_x = int(x * scale_x) + offset_x
+            scaled_y = int(y * scale_y) + offset_y
+            scaled_w = int(w * scale_x)
+            scaled_h = int(h * scale_y)
+            self.add_collision(scaled_x, scaled_y, scaled_w, scaled_h, name)
+
+        # Existing boundaries
+        scaled_collision(0, 0, 50, bg_height, "LeftWall")
+        scaled_collision(bg_width - 50, 0, 50, bg_height, "RightWall")
+        scaled_collision(0, 0, bg_width, 100, "TopWall")
+        scaled_collision(0, bg_height - 50, bg_width, 50, "BottomWall")
+
+        # New elements
+        # Example: LONG_SIDE_COMPUTER_TABLE
+        scaled_collision(100, 300, 200, 50, "LONG_SIDE_COMPUTER_TABLE")
+        # Example: SHORT_SIDE_COMPUTER_TABLE
+        scaled_collision(300, 350, 100, 50, "SHORT_SIDE_COMPUTER_TABLE")
+        # Example: WHITE_SHORT_SIDE_COMPUTER_TABLE
+        scaled_collision(400, 400, 100, 50, "WHITE_SHORT_SIDE_COMPUTER_TABLE")
 
         # Helper function to scale and position coordinates
         def scaled_collision(x, y, w, h, name):
@@ -146,16 +182,32 @@ class CollisionManager:
         self.collision_objects.add(collision_obj)
 
     def check_collision(self, rect):
-        """Check if a rectangle collides with any collision objects"""
+        """Check if a rectangle collides with any collision objects and determine which side"""
         for collision_obj in self.collision_objects:
             if rect.colliderect(collision_obj.rect):
-                return collision_obj
+                # Determine which side of the collision happened
+                dx = (rect.centerx - collision_obj.rect.centerx)
+                dy = (rect.centery - collision_obj.rect.centery)
+                if abs(dx) > abs(dy):
+                    if dx > 0:
+                        return ("right", collision_obj)
+                    else:
+                        return ("left", collision_obj)
+                else:
+                    if dy > 0:
+                        return ("bottom", collision_obj)
+                    else:
+                        return ("top", collision_obj)
         return None
 
     def draw_debug(self, surface, offset):
-        """Draw all collision boxes for debugging"""
-        for collision_obj in self.collision_objects:
-            collision_obj.draw_debug(surface, offset)
+        debug_rect = self.rect.copy()
+        debug_rect.x -= offset.x
+        debug_rect.y -= offset.y
+        pygame.draw.rect(surface, RED, debug_rect, 2)
+        font = pygame.font.SysFont("Arial", 10)
+        text = font.render(self.name, True, RED)
+        surface.blit(text, (debug_rect.x, debug_rect.y))
 
 
 class Player(pygame.sprite.Sprite):
@@ -203,59 +255,52 @@ class Player(pygame.sprite.Sprite):
         self.collision_manager = collision_manager
 
     def update(self, keys):
-        # Store original position
         original_x = self.rect.x
         original_y = self.rect.y
-
-        # Track if any movement happened this frame
         moved = False
 
-        # Handle movement based on key presses with collision detection
+        # Handle movement based on key presses
+        dx, dy = 0, 0
         if keys[pygame.K_w] or keys[pygame.K_UP]:
-            # Try moving up
-            self.rect.y -= self.speed
-            if self.collision_manager.check_collision(self.rect):
-                self.rect.y = original_y  # Revert movement if collision
-            else:
-                self.direction = 'back'  # HAROLD_1
-                moved = True
-                self.last_movement = 'back'
+            dy = -self.speed
+            self.direction = 'back'
+            moved = True
+            self.last_movement = 'back'
+        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            dy = self.speed
+            self.direction = 'front'
+            moved = True
+            self.last_movement = 'front'
+        elif keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            dx = -self.speed
+            self.direction = 'left'
+            moved = True
+            self.last_movement = 'left'
+        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            dx = self.speed
+            self.direction = 'right'
+            moved = True
+            self.last_movement = 'right'
 
-        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            # Try moving down
-            self.rect.y += self.speed
-            if self.collision_manager.check_collision(self.rect):
-                self.rect.y = original_y  # Revert movement if collision
-            else:
-                self.direction = 'front'  # HAROLD_4
-                moved = True
-                self.last_movement = 'front'
+        # Move player temporarily
+        self.rect.x += dx
+        self.rect.y += dy
 
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            # Try moving left
-            self.rect.x -= self.speed
-            if self.collision_manager.check_collision(self.rect):
-                self.rect.x = original_x  # Revert movement if collision
-            else:
-                self.direction = 'left'  # HAROLD_3
-                moved = True
-                self.last_movement = 'left'
+        # Check for collisions
+        collision_result = self.collision_manager.check_collision(self.rect)
+        if collision_result:
+            direction, _ = collision_result
+            # Revert movement depending on direction
+            if direction == "left" or direction == "right":
+                self.rect.x = original_x
+            if direction == "top" or direction == "bottom":
+                self.rect.y = original_y
 
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            # Try moving right
-            self.rect.x += self.speed
-            if self.collision_manager.check_collision(self.rect):
-                self.rect.x = original_x  # Revert movement if collision
-            else:
-                self.direction = 'right'  # HAROLD_2
-                moved = True
-                self.last_movement = 'right'
-
-        # If no movement this frame but we have a last movement, keep that direction
+        # If no movement, keep last direction
         if not moved and self.last_movement:
             self.direction = self.last_movement
 
-        # Update the image based on direction
+        # Update image
         self.image = self.sprites[self.direction]
 
 
