@@ -1,446 +1,160 @@
 import pygame
 import sys
-import os
 
-# Colors
+# === Colors === #
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 
-class ComlabSprite(pygame.sprite.Sprite):
-    def __init__(self, image_path, x, y, width, height, name="ComlabSprite"):
+
+# === Utility Classes === #
+# The CollisionObject and CollisionManager classes are removed.
+
+
+# === Visual Classes === #
+class Introduction_Background(pygame.sprite.Sprite):
+    def __init__(self, width, height):
         super().__init__()
-        self.name = name
+        self.width = width
+        self.height = height
         try:
-            image = pygame.image.load(image_path).convert_alpha()
-            image = pygame.transform.scale(image, (width, height))
-            self.image = image
-        except Exception:
+            img = pygame.image.load('Images/SPRITES/MAP.png')
+            ow, oh = img.get_size()
+            scale = max(width / ow, height / oh)
+            nw, nh = int(ow * scale), int(oh * scale)
+            self.image = pygame.transform.scale(img, (nw, nh))
+            self.width, self.height = nw, nh
+        except:
             self.image = pygame.Surface((width, height))
-            self.image.fill((255, 0, 0))
-        self.rect = self.image.get_rect(topleft=(x, y))
-        self.add_collision(sprite.rect.x, sprite.rect.y, sprite.rect.width, sprite.rect.height, name=sprite_file)
+            self.image.fill((50, 50, 100))
+        self.rect = self.image.get_rect(center=(width // 2, height // 2))
+
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, x, y): # collision_manager parameter removed
+        super().__init__()
+        self.sprites = {}
+        try:
+            for d, i in zip(['back', 'right', 'left', 'front'], range(1, 5)):
+                img = pygame.image.load(f'Images/SPRITES/CHARACTER_SPRITES/HAROLD/HAROLD_{i}.png')
+                self.sprites[d] = pygame.transform.scale(img, (110, 110))
+        except:
+            for d in ['back', 'right', 'left', 'front']:
+                surface = pygame.Surface((80, 80))
+                surface.fill(RED)
+                self.sprites[d] = surface
+
+        self.direction = 'front'
+        self.image = self.sprites[self.direction]
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = 5
+        self.last_movement = None
+        # self.collision_manager = collision_manager # removed
+
+    def update(self, keys):
+        dx = dy = 0
+        # orig_x, orig_y = self.rect.x, self.rect.y # no longer needed
+        moved = False
+
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            dy = -self.speed; self.direction = 'back'; moved = True
+        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            dy = self.speed; self.direction = 'front'; moved = True
+        elif keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            dx = -self.speed; self.direction = 'left'; moved = True
+        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            dx = self.speed; self.direction = 'right'; moved = True
+
+        self.rect.x += dx
+        self.rect.y += dy
+        # The collision check and rollback are removed:
+        # if self.collision_manager.check_collision(self.rect):
+        #     self.rect.x, self.rect.y = orig_x, orig_y
+
+        if moved:
+            self.last_movement = self.direction
+        elif self.last_movement:
+            self.direction = self.last_movement
+        self.image = self.sprites[self.direction]
+
 
 class CameraGroup(pygame.sprite.Group):
     def __init__(self):
         super().__init__()
         self.offset = pygame.math.Vector2()
-        display_surface = pygame.display.get_surface()
-        if display_surface is None:
-            raise RuntimeError("Pygame display must be initialized before creating CameraGroup")
-        self.half_width = display_surface.get_width() // 2
-        self.half_height = display_surface.get_height() // 2
-
-        # Set zoom factor to show a bit more of the screen (2.2x2.2 grid)
-        self.zoom_factor = 2.2  # Reduced from 2.8 to zoom out a little bit
-
-        # Create a viewport surface for the visible area
-        self.viewport_width = int(display_surface.get_width() // 2.2)
-        self.viewport_height = int(display_surface.get_height() // 2.2)
-        self.viewport = pygame.Surface((self.viewport_width, self.viewport_height))
-
-        # Reference to collision layer for depth sorting
-        self.collision_layer = None
+        screen = pygame.display.get_surface()
+        self.vw = screen.get_width() // 2.2
+        self.vh = screen.get_height() // 2.2
+        self.viewport = pygame.Surface((self.vw, self.vh))
 
     def custom_draw(self, screen, player):
-        # Calculate offset based on player position
-        # This centers the player in the small viewport
-        self.offset.x = player.rect.centerx - self.viewport_width // 2
-        self.offset.y = player.rect.centery - self.viewport_height // 2
-
-        # Combine all sprites (including player and furniture) except background
-        draw_sprites = [sprite for sprite in self.sprites() if not isinstance(sprite, Introduction_Background)]
-        draw_sprites.sort(key=lambda s: s.rect.bottom)
-
-        # Clear the viewport with black
+        self.offset.x = player.rect.centerx - self.vw // 2
+        self.offset.y = player.rect.centery - self.vh // 2
         self.viewport.fill(BLACK)
 
         # Draw background first
         for sprite in self.sprites():
             if isinstance(sprite, Introduction_Background):
                 offset_rect = sprite.rect.copy()
-                offset_rect.topleft = (offset_rect.x - self.offset.x, offset_rect.y - self.offset.y)
-
-                # Only draw if visible in viewport
-                if (offset_rect.right > 0 and offset_rect.bottom > 0 and
-                        offset_rect.left < self.viewport_width and offset_rect.top < self.viewport_height):
+                offset_rect.topleft -= self.offset
+                if 0 < offset_rect.right and offset_rect.left < self.vw and 0 < offset_rect.bottom and offset_rect.top < self.vh:
                     self.viewport.blit(sprite.image, offset_rect)
+                break # Assuming there's only one background
 
-        # Draw all other sprites Y-sorted
-        for sprite in draw_sprites:
+        # Draw other sprites, sorted by bottom for correct layering
+        for sprite in sorted(self.sprites(), key=lambda s: getattr(s, 'rect', pygame.Rect(0, 0, 0, 0)).bottom):
+            if not hasattr(sprite, 'rect') or isinstance(sprite, Introduction_Background):
+                continue
             offset_rect = sprite.rect.copy()
-            offset_rect.topleft = (offset_rect.x - self.offset.x, offset_rect.y - self.offset.y)
-
-            # Only draw if visible in viewport
-            if (offset_rect.right > 0 and offset_rect.bottom > 0 and
-                    offset_rect.left < self.viewport_width and offset_rect.top < self.viewport_height):
+            offset_rect.topleft -= self.offset
+            if 0 < offset_rect.right and offset_rect.left < self.vw and 0 < offset_rect.bottom and offset_rect.top < self.vh:
                 self.viewport.blit(sprite.image, offset_rect)
 
-        # Scale the viewport up to fill the screen (Undertale-style)
-        scaled_viewport = pygame.transform.scale(self.viewport, (screen.get_width(), screen.get_height()))
-        screen.blit(scaled_viewport, (0, 0))
+        screen.blit(pygame.transform.scale(self.viewport, screen.get_size()), (0, 0))
 
-
-class CollisionObject(pygame.sprite.Sprite):
-    """Invisible collision object for furniture"""
-
-    def __init__(self, x, y, width, height, name=""):
-        super().__init__()
-        # Create invisible collision box
-        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
-        self.image.fill((0, 0, 0, 0))  # Transparent
-        self.rect = pygame.Rect(x, y, width, height)
-        self.name = name
-
-    def draw_debug(self, surface, offset):
-        """Draw collision box for debugging"""
-        debug_rect = self.rect.copy()
-        debug_rect.x -= offset.x
-        debug_rect.y -= offset.y
-        pygame.draw.rect(surface, RED, debug_rect, 2)
-
-
-class CollisionManager:
-    """Manages all collision objects in the scene"""
-
-    def __init__(self, background_sprite):
-        self.collision_objects = pygame.sprite.Group()
-        self.background_sprite = background_sprite
-        self.setup_restaurant_collisions()
-
-    def setup_restaurant_collisions(self):
-        bg_rect = self.background_sprite.rect
-        bg_width = self.background_sprite.width
-        bg_height = self.background_sprite.height
-        offset_x = bg_rect.left
-        offset_y = bg_rect.top
-        scale_x = bg_width / 500.0
-        scale_y = bg_height / 900.0
-
-        def scaled_collision(x, y, w, h, name):
-            scaled_x = int(x * scale_x) + offset_x
-            scaled_y = int(y * scale_y) + offset_y
-            scaled_w = int(w * scale_x)
-            scaled_h = int(h * scale_y)
-            self.add_collision(scaled_x, scaled_y, scaled_w, scaled_h, name)
-
-        # Existing boundaries
-        scaled_collision(0, 0, 50, bg_height, "LeftWall")
-        scaled_collision(bg_width - 50, 0, 50, bg_height, "RightWall")
-        scaled_collision(0, 0, bg_width, 100, "TopWall")
-        scaled_collision(0, bg_height - 50, bg_width, 50, "BottomWall")
-
-        # Existing tables
-        scaled_collision(300, 350, 120, 80, "MainTable")
-        scaled_collision(300, 480, 120, 60, "LowerTable")
-
-        # NEW FURNITURE ELEMENTS
-        scaled_collision(100, 200, 200, 40, "LONG_SIDE_COMPUTER_TABLE")
-        scaled_collision(350, 200, 100, 40, "SHORT_SIDE_COMPUTER_TABLE")
-        scaled_collision(100, 500, 100, 40, "WHITE_SHORT_SIDE_COMPUTER_TABLED")
-
-        def scaled_collision(x, y, w, h, name):
-            scaled_x = int(x * scale_x) + offset_x
-            scaled_y = int(y * scale_y) + offset_y
-            scaled_w = int(w * scale_x)
-            scaled_h = int(h * scale_y)
-            self.add_collision(scaled_x, scaled_y, scaled_w, scaled_h, name)
-
-        # Existing boundaries
-        scaled_collision(0, 0, 50, bg_height, "LeftWall")
-        scaled_collision(bg_width - 50, 0, 50, bg_height, "RightWall")
-        scaled_collision(0, 0, bg_width, 100, "TopWall")
-        scaled_collision(0, bg_height - 50, bg_width, 50, "BottomWall")
-
-        # New elements
-        # Example: LONG_SIDE_COMPUTER_TABLE
-        scaled_collision(100, 300, 200, 50, "LONG_SIDE_COMPUTER_TABLE")
-        # Example: SHORT_SIDE_COMPUTER_TABLE
-        scaled_collision(300, 350, 100, 50, "SHORT_SIDE_COMPUTER_TABLE")
-        # Example: WHITE_SHORT_SIDE_COMPUTER_TABLE
-        scaled_collision(400, 400, 100, 50, "WHITE_SHORT_SIDE_COMPUTER_TABLE")
-
-        # Helper function to scale and position coordinates
-        def scaled_collision(x, y, w, h, name):
-            scaled_x = int(x * scale_x) + offset_x
-            scaled_y = int(y * scale_y) + offset_y
-            scaled_w = int(w * scale_x)
-            scaled_h = int(h * scale_y)
-            self.add_collision(scaled_x, scaled_y, scaled_w, scaled_h, name)
-
-        # Tables - Main dining area (white rectangular surfaces)
-        # Adjusted coordinates based on your screenshot
-        # Top table with chairs (the one visible in screenshot)
-        scaled_collision(300, 350, 120, 80, "MainTable")
-
-        # Lower table
-        scaled_collision(300, 480, 120, 60, "LowerTable")
-
-        # Side boundaries to prevent walking off the brown tiled area
-        # Left boundary
-        scaled_collision(0, 0, 50, bg_height, "LeftWall")
-        # Right boundary
-        scaled_collision(bg_width - 50, 0, 50, bg_height, "RightWall")
-        # Top boundary
-        scaled_collision(0, 0, bg_width, 100, "TopWall")
-        # Bottom boundary
-        scaled_collision(0, bg_height - 50, bg_width, 50, "BottomWall")
-
-    def add_collision(self, x, y, width, height, name=""):
-        """Add a collision object to the manager"""
-        collision_obj = CollisionObject(x, y, width, height, name)
-        self.collision_objects.add(collision_obj)
-
-    def check_collision(self, rect):
-        """Check if a rectangle collides with any collision objects and determine which side"""
-        for collision_obj in self.collision_objects:
-            if rect.colliderect(collision_obj.rect):
-                # Determine which side of the collision happened
-                dx = (rect.centerx - collision_obj.rect.centerx)
-                dy = (rect.centery - collision_obj.rect.centery)
-                if abs(dx) > abs(dy):
-                    if dx > 0:
-                        return ("right", collision_obj)
-                    else:
-                        return ("left", collision_obj)
-                else:
-                    if dy > 0:
-                        return ("bottom", collision_obj)
-                    else:
-                        return ("top", collision_obj)
-        return None
-
-    def draw_debug(self, surface, offset):
-        debug_rect = self.rect.copy()
-        debug_rect.x -= offset.x
-        debug_rect.y -= offset.y
-        pygame.draw.rect(surface, RED, debug_rect, 2)
-        font = pygame.font.SysFont("Arial", 10)
-        text = font.render(self.name, True, RED)
-        surface.blit(text, (debug_rect.x, debug_rect.y))
-
-
-class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y, collision_manager):
-        super().__init__()
-        # Load Harold sprite images for different directions
-        self.sprites = {
-            'back': None,  # HAROLD_1 - facing back (up)
-            'right': None,  # HAROLD_2 - facing right
-            'left': None,  # HAROLD_3 - facing left
-            'front': None  # HAROLD_4 - facing down
-        }
-
-        # Load the sprites
-        try:
-            self.sprites['back'] = pygame.image.load('Images\\SPRITES\\CHARACTER_SPRITES\\HAROLD\\HAROLD_1.png')
-            self.sprites['right'] = pygame.image.load('Images\\SPRITES\\CHARACTER_SPRITES\\HAROLD\\HAROLD_2.png')
-            self.sprites['left'] = pygame.image.load('Images\\SPRITES\\CHARACTER_SPRITES\\HAROLD\\HAROLD_3.png')
-            self.sprites['front'] = pygame.image.load('Images\\SPRITES\\CHARACTER_SPRITES\\HAROLD\\HAROLD_4.png')
-
-            # Scale all sprites to make them more visible (80x80 pixels)
-            for direction in self.sprites:
-                if self.sprites[direction]:
-                    self.sprites[direction] = pygame.transform.scale(self.sprites[direction], (120, 120))
-        except pygame.error as e:
-            print(f"Warning: Could not load Harold sprites: {e}")
-            # Create fallback colored rectangles if image loading fails
-            for direction in self.sprites:
-                fallback = pygame.Surface((80, 80))
-                fallback.fill((255, 0, 0))  # Red color as fallback
-                self.sprites[direction] = fallback
-
-        # Set initial direction and image
-        self.direction = 'front'  # Start facing front
-        self.image = self.sprites[self.direction]
-        self.rect = self.image.get_rect()
-        self.rect.centerx = x
-        self.rect.centery = y
-        self.speed = 5
-
-        # Track last movement for direction when not moving
-        self.last_movement = None
-
-        # Store collision manager reference
-        self.collision_manager = collision_manager
-
-    def update(self, keys):
-        original_x = self.rect.x
-        original_y = self.rect.y
-        moved = False
-
-        # Handle movement based on key presses
-        dx, dy = 0, 0
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            dy = -self.speed
-            self.direction = 'back'
-            moved = True
-            self.last_movement = 'back'
-        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            dy = self.speed
-            self.direction = 'front'
-            moved = True
-            self.last_movement = 'front'
-        elif keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            dx = -self.speed
-            self.direction = 'left'
-            moved = True
-            self.last_movement = 'left'
-        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            dx = self.speed
-            self.direction = 'right'
-            moved = True
-            self.last_movement = 'right'
-
-        # Move player temporarily
-        self.rect.x += dx
-        self.rect.y += dy
-
-        # Check for collisions
-        collision_result = self.collision_manager.check_collision(self.rect)
-        if collision_result:
-            direction, _ = collision_result
-            # Revert movement depending on direction
-            if direction == "left" or direction == "right":
-                self.rect.x = original_x
-            if direction == "top" or direction == "bottom":
-                self.rect.y = original_y
-
-        # If no movement, keep last direction
-        if not moved and self.last_movement:
-            self.direction = self.last_movement
-
-        # Update image
-        self.image = self.sprites[self.direction]
-
-
-class Introduction_Background(pygame.sprite.Sprite):
-    def __init__(self, width, height):
-        super().__init__()  # Call parent constructor with no arguments
-
-        # Store dimensions
-        self.width = width
-        self.height = height
-
-        # Try to load background image
-        try:
-            original_image = pygame.image.load('Images\\SPRITES\\MAP.png')
-            original_width, original_height = original_image.get_size()
-            print(f"Original MAP.png dimensions: {original_width}x{original_height}")
-
-            # Calculate the scale factor needed to ensure the map covers the entire screen
-            # while maintaining aspect ratio
-            scale_x = width / original_width
-            scale_y = height / original_height
-            scale_factor = max(scale_x, scale_y)  # Use the larger scale factor to ensure no black bars
-
-            # Scale the image to at least the size of the screen
-            new_width = int(original_width * scale_factor)
-            new_height = int(original_height * scale_factor)
-            self.image = pygame.transform.scale(original_image, (new_width, new_height))
-            self.width, self.height = new_width, new_height
-            print(f"Scaled MAP.png to: {new_width}x{new_height} to ensure no black bars")
-
-        except pygame.error:
-            print("Warning: Could not load background image 'Images\\SPRITES\\MAP.png'")
-            # Create a default background if image loading fails
-            self.image = pygame.Surface((width, height))
-            self.width, self.height = width, height
-            self.image.fill((50, 50, 100))  # Dark blue background
-
-        # Set up the rectangle - position it at the center
-        self.rect = self.image.get_rect()
-        self.rect.center = (width // 2, height // 2)
-
-
-def introduction_main():  # Renamed from 'main' to 'introduction_main'
-    # Initialize Pygame and create display first
-    if not pygame.get_init():
-        pygame.init()
-
-    # If no display exists, create one
+# === Main Loop === #
+def introduction_main():
+    pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))  # Default size if not already set
+        pygame.display.set_mode((800, 600))
+    screen = pygame.display.get_surface()
+    width, height = screen.get_size()
 
-    # Now create the camera group
-    camera_group = CameraGroup()
+    cam_group = CameraGroup()
+    bg = Introduction_Background(width, height)
+    cam_group.add(bg)
 
-    # Get the screen from the main game
-    SCREEN = pygame.display.get_surface()
-    WIDTH, HEIGHT = SCREEN.get_size()
+    # collision_manager = CollisionManager(bg) # removed
+    player = Player(width // 2, height // 2) # collision_manager argument removed
+    cam_group.add(player)
 
-    # Fill screen with black initially
-    SCREEN.fill(BLACK)
-    pygame.display.flip()
-
-    # Create background sprite with proper initialization FIRST
-    background = Introduction_Background(WIDTH, HEIGHT)
-    camera_group.add(background)
-
-    # Create collision manager with the background sprite
-    collision_manager = CollisionManager(background)
-
-    # Create player sprite with collision manager
-    player = Player(WIDTH // 2, HEIGHT // 2, collision_manager)
-    camera_group.add(player)
-
-    # Add instruction text
     font = pygame.font.SysFont("Arial", 18)
-    instruction_text = "WASD/Arrow Keys: Move | ESC: Exit | F1: Toggle Debug"
-    text_surface = font.render(instruction_text, True, WHITE)
-    text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 30))
+    instruction_text = font.render("WASD/Arrow Keys: Move | ESC: Exit", True, WHITE) # F1 debug instruction removed
+    text_rect = instruction_text.get_rect(center=(width // 2, height - 30))
 
-    # Debug mode toggle
-    debug_mode = False
-
+    # debug = False # removed
     clock = pygame.time.Clock()
-    running = True
 
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+    while True:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    return
+                # elif e.key == pygame.K_F1: # removed
+                #     debug = not debug
 
-            # Handle keyboard input
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-                elif event.key == pygame.K_F1:
-                    debug_mode = not debug_mode
-                    print(f"Debug mode: {'ON' if debug_mode else 'OFF'}")
-
-        # Get keyboard state for continuous movement
         keys = pygame.key.get_pressed()
-
-        # Update player based on keyboard input
         player.update(keys)
-
-        # Fill screen with black before drawing sprites
-        SCREEN.fill(BLACK)
-
-        # Draw all sprites with camera following player
-        camera_group.custom_draw(SCREEN, player)
-
-        # Draw collision boxes in debug mode
-        if debug_mode:
-            collision_manager.draw_debug(camera_group.viewport, camera_group.offset)
-            # Scale and draw the debug viewport
-            debug_viewport = pygame.transform.scale(camera_group.viewport, (SCREEN.get_width(), SCREEN.get_height()))
-            SCREEN.blit(debug_viewport, (0, 0))
-
-        # Draw instruction text (fixed position, not affected by camera)
-        SCREEN.blit(text_surface, text_rect)
-
-        # Update display
+        screen.fill(BLACK)
+        cam_group.custom_draw(screen, player)
+        # if debug: # removed
+        #     collision_manager.draw_debug(cam_group.viewport, cam_group.offset)
+        screen.blit(instruction_text, text_rect)
         pygame.display.flip()
         clock.tick(60)
 
 
-# Keep the original main function for standalone execution
-def main():
+if __name__ == '__main__':
     introduction_main()
-
-
-if __name__ == "__main__":
-    main()

@@ -31,6 +31,16 @@ BUTTON_RED_DARK = (140, 30, 20)  # Dark red for shadows/borders
 BUTTON_RED_LIGHT = (220, 80, 60)  # Light red for highlights
 DARK_BLUE = (30, 30, 80)  # Game background color
 
+# Matrix Rain Colors (from hex values)
+MATRIX_RED_LIGHT = (0xeb, 0x88, 0x79)
+MATRIX_BLUE_LIGHT = (0x8c, 0xd7, 0xec)
+MATRIX_BLUE_DARK = (0x4a, 0x8f, 0xb5)
+# Correcting the duplicated #4a8fb5 to a different red as requested.
+MATRIX_RED_DARK = (0xaa, 0x44, 0x44)
+
+MATRIX_COLORS = [MATRIX_RED_LIGHT, MATRIX_BLUE_LIGHT, MATRIX_BLUE_DARK, MATRIX_RED_DARK]
+
+
 # Pixel Fonts
 # Define font paths
 FONT_DIR = os.path.join(os.path.dirname(__file__), "Assets", "font", "PixelFonts")
@@ -76,35 +86,103 @@ except pygame.error:
     print("Warning: Could not load logo image 'Images\\DEADLINE_CHRONICLES.png'")
     logo_img = None
 
-# --- Background Panning Variables ---
+# --- Background Panning Variables (No longer used for Matrix Rain, kept for reference) ---
 menu_bg_img = None
-original_menu_bg_img = None  # Store the original loaded image
-bg_pan_offset_y = 0  # Current vertical offset for panning
-bg_pan_speed = 0.3  # How many pixels to move per frame
-bg_pan_direction = 1  # 1 for down, -1 for up
-can_bg_pan = False  # Flag to check if background can actually pan
+original_menu_bg_img = None
+bg_pan_offset_y = 0
+bg_pan_speed = 0.3
+bg_pan_direction = 1
+can_bg_pan = False
 
-# Load menu background image
-try:
-    original_menu_bg_img = pygame.image.load('Images\\Menu_Background\\ComLab2_Temp1.png').convert_alpha()
 
-    # Fixed scaling approach
-    new_width = WIDTH
-    new_height = int(HEIGHT * 1.5)  # Make it 50% taller for panning
+# Matrix Rain Setup
+# Choose a font for the matrix characters. Pixel fonts are ideal.
+if pixel_fonts_loaded:
+    matrix_font = pygame.font.Font(FONT_REGULAR, 20) # A smaller font for denser rain
+else:
+    matrix_font = pygame.font.SysFont("Consolas", 20) # Consolas or Courier New are good monospace fallbacks
 
-    menu_bg_img = pygame.transform.scale(original_menu_bg_img, (new_width, new_height))
+MATRIX_FONT_HEIGHT = matrix_font.get_height()
+# Calculate number of columns based on font width
+# Assuming monospace font where width is consistent
+if matrix_font.size('W')[0] > 0:
+    NUM_COLUMNS = WIDTH // matrix_font.size('W')[0]
+else:
+    NUM_COLUMNS = WIDTH // 20 # Fallback if font size returns 0
 
-    # Enable panning only if the scaled image is taller than the screen
-    can_bg_pan = new_height > HEIGHT
-    if can_bg_pan:
-        print(f"Background scaled to: {new_width}x{new_height}. Panning enabled.")
-    else:
-        print(f"Background scaled to: {WIDTH}x{HEIGHT}. Panning disabled.")
+# Store matrix streams
+matrix_streams = []
 
-except pygame.error:
-    print("Warning: Could not load background image 'Images\\Menu_Background\\ComLab2_Temp1.png'")
-    menu_bg_img = None
-    can_bg_pan = False  # No image, no panning
+class MatrixStream:
+    def __init__(self, x, screen_height, font, colors):
+        self.x = x
+        # Start above screen, ensuring streams have varying start points
+        self.y = random.randint(-screen_height, 0)
+        self.speed = random.randint(3, 7) # Speed of the stream
+        self.length = random.randint(10, 30) # Length of the stream
+        self.characters = [] # Stores character data for this stream
+        self.font = font
+        self.colors = colors
+        self.screen_height = screen_height
+        self.init_characters()
+
+    def init_characters(self):
+        """Initializes the characters for the stream with random symbols and colors."""
+        self.characters = []
+        for _ in range(self.length):
+            char = chr(random.randint(33, 126)) # Printable ASCII characters
+            color = random.choice(self.colors)
+            self.characters.append({"char": char, "color": color})
+
+    def update(self):
+        """Updates the stream's position and randomizes character symbols."""
+        self.y += self.speed
+
+        # Randomize character symbols in the stream every frame
+        for i in range(self.length):
+            self.characters[i]["char"] = chr(random.randint(33, 126))
+
+        # If the stream goes off screen, reset it to the top
+        if self.y > self.screen_height:
+            # Reset the stream's start position above the screen
+            self.y = random.randint(-self.screen_height, 0) - (self.length * MATRIX_FONT_HEIGHT)
+            self.speed = random.randint(3, 7) # New random speed
+            self.length = random.randint(10, 30) # New random length
+            self.init_characters() # Re-initialize characters for the new stream
+
+    def draw(self, surface):
+        """Draws the matrix stream with fading effects."""
+        current_y = self.y
+        for i, char_data in enumerate(self.characters):
+            # Render the character
+            char_surface = self.font.render(char_data["char"], True, char_data["color"])
+
+            # Calculate alpha based on position within the stream (fade tail)
+            # Topmost character (i=0) is brightest, fades towards end of stream
+            alpha_stream_fade = 255 - int(255 * (i / self.length))
+            alpha_stream_fade = max(0, min(255, alpha_stream_fade)) # Clamp alpha to 0-255
+
+            # Calculate alpha based on absolute screen Y position (darker at top)
+            # Characters at the top of the screen are darker, get brighter towards the bottom.
+            absolute_char_y = current_y
+            # Scale alpha from a minimum (e.g., 50) to full brightness (255) based on Y position
+            # Higher on screen (smaller Y) means closer to minimum alpha.
+            alpha_screen_y = int(50 + (205 * (absolute_char_y / self.screen_height)))
+            alpha_screen_y = max(50, min(255, alpha_screen_y)) # Clamp alpha to 50-255
+
+            # Combine the two alpha effects: take the minimum to ensure both fading rules are applied
+            final_alpha = min(alpha_stream_fade, alpha_screen_y)
+            char_surface.set_alpha(final_alpha)
+
+            # Blit the character surface
+            surface.blit(char_surface, (self.x, current_y))
+            current_y += MATRIX_FONT_HEIGHT
+
+
+# Initialize matrix streams for each column
+for i in range(NUM_COLUMNS):
+    x_pos = i * matrix_font.size('W')[0] # Position streams by character width
+    matrix_streams.append(MatrixStream(x_pos, HEIGHT, matrix_font, MATRIX_COLORS))
 
 
 class PixelButton:
@@ -153,7 +231,7 @@ class PixelButton:
             self.text_surface = None
 
     def load_animations(self):
-        # Load idle animations
+        """Loads all animation frames for the button based on its type."""
         idle_path = os.path.join(self.animation_base_path, "Idle")
         hover_path = os.path.join(self.animation_base_path, "Hover")
         click_path = os.path.join(self.animation_base_path, "Click")
@@ -191,17 +269,15 @@ class PixelButton:
                     idle_img = pygame.transform.scale(idle_img, (self.rect.width, self.rect.height))
                     self.idle_frames.append(idle_img)
                 except pygame.error:
-                    # Stop if file doesn't exist
+                    # Stop if file doesn't exist (assuming sequential numbering)
                     break
 
             # Load hover frames
-            i = 1
             for i in range(1, 77):
                 try:
                     hover_img = pygame.image.load(os.path.join(hover_path, f"ExitPngHover{i}.png"))
                     hover_img = pygame.transform.scale(hover_img, (self.rect.width, self.rect.height))
                     self.hover_frames.append(hover_img)
-                    i += 1
                 except pygame.error:
                     # Stop if file doesn't exist
                     break
@@ -251,23 +327,24 @@ class PixelButton:
                 self.current_frame_index = (self.current_frame_index + 1) % len(frames)
 
     def draw(self, surface):
+        """Draws the button, prioritizing animations, then static image, then pixel art."""
         # If we have animations, use them
-        if self.animation_base_path:
+        if self.animation_base_path and self.idle_frames: # Check if idle_frames are loaded for animation
             # Update the animation state based on hover/click status
-            if self.is_clicked:
+            if self.is_clicked and self.click_frames:
                 self.current_state = "click"
-            elif self.is_hovered:
+            elif self.is_hovered and self.hover_frames:
                 self.current_state = "hover"
             else:
                 self.current_state = "idle"
 
             # Get the current frame to display
             current_frame = None
-            if self.current_state == "idle" and self.idle_frames:
+            if self.current_state == "idle":
                 current_frame = self.idle_frames[self.current_frame_index % len(self.idle_frames)]
-            elif self.current_state == "hover" and self.hover_frames:
+            elif self.current_state == "hover":
                 current_frame = self.hover_frames[self.current_frame_index % len(self.hover_frames)]
-            elif self.current_state == "click" and self.click_frames:
+            elif self.current_state == "click":
                 current_frame = self.click_frames[self.current_frame_index % len(self.click_frames)]
 
             # If we have a frame to display, blit it to the surface
@@ -284,7 +361,7 @@ class PixelButton:
             surface.blit(self.button_image, image_rect)
             return
 
-        # Original pixel art button drawing code (fallback)
+        # Original pixel art button drawing code (fallback if no image/animation)
         # Draw the main button with a 3D effect
         # Draw shadow/border first (darker red)
         shadow_rect = pygame.Rect(
@@ -299,17 +376,18 @@ class PixelButton:
         pygame.draw.rect(surface, BUTTON_RED, self.rect)
 
         # Add pixelated border
-        border_color = WHITE if self.is_hovered else BUTTON_RED_DARK
-        # Top border
+        # This border uses BUTTON_RED_LIGHT for top/left and BUTTON_RED_DARK for bottom/right
         pygame.draw.rect(surface, BUTTON_RED_LIGHT, (self.rect.x, self.rect.y, self.rect.width, self.pixel_size))
-        # Left border
         pygame.draw.rect(surface, BUTTON_RED_LIGHT, (self.rect.x, self.rect.y, self.pixel_size, self.rect.height))
-        # Bottom border
         pygame.draw.rect(surface, BUTTON_RED_DARK, (self.rect.x, self.rect.y + self.rect.height - self.pixel_size,
                                                     self.rect.width, self.pixel_size))
-        # Right border
         pygame.draw.rect(surface, BUTTON_RED_DARK, (self.rect.x + self.rect.width - self.pixel_size, self.rect.y,
                                                     self.pixel_size, self.rect.height))
+
+        # Highlight if hovered
+        if self.is_hovered:
+            pygame.draw.rect(surface, WHITE, (self.rect.x, self.rect.y, self.rect.width, self.pixel_size))
+            pygame.draw.rect(surface, WHITE, (self.rect.x, self.rect.y, self.pixel_size, self.rect.height))
 
         # Position the text in the center of the button
         if self.text_surface:
@@ -317,6 +395,7 @@ class PixelButton:
             surface.blit(self.text_surface, text_rect)
 
     def check_hover(self, pos):
+        """Checks if the mouse position is over the button and updates hover state."""
         self.is_hovered = self.rect.collidepoint(pos)
         # Reset click state if mouse moves away from button
         if not self.is_hovered:
@@ -324,6 +403,7 @@ class PixelButton:
         return self.is_hovered
 
     def handle_click(self, event):
+        """Handles mouse click events for the button."""
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
             self.is_clicked = True
             return True
@@ -334,33 +414,12 @@ class PixelButton:
 
 
 def draw_menu():
-    # Update background panning offset
-    global bg_pan_offset_y, bg_pan_direction
-
-    if menu_bg_img is not None and can_bg_pan:
-        bg_pan_offset_y += bg_pan_speed * bg_pan_direction
-
-        # Reverse direction if hitting boundaries
-        # Top boundary is 0. Bottom boundary is (image height - screen height).
-        if bg_pan_direction == 1 and bg_pan_offset_y >= (menu_bg_img.get_height() - HEIGHT):
-            bg_pan_direction = -1
-        elif bg_pan_direction == -1 and bg_pan_offset_y <= 0:
-            bg_pan_direction = 1
-
-        # Display background image with current offset
-        # The blit function draws the image. The second argument is the destination rectangle.
-        # We specify the top-left corner of the portion of the image we want to draw.
-        # The third argument is the source rectangle (x, y, width, height) from the image.
-        SCREEN.blit(menu_bg_img, (0, 0), (0, int(bg_pan_offset_y), WIDTH, HEIGHT))
-    elif menu_bg_img is not None:
-        # If panning is not possible (image not tall enough), just blit the scaled image
-        SCREEN.blit(menu_bg_img, (0, 0))
-    else:
-        # Fallback to gradient if image isn't available
-        for y in range(HEIGHT):
-            # Create a gradient from dark blue to light blue
-            color_value = int(y / HEIGHT * 155) + 100
-            pygame.draw.line(SCREEN, (0, 0, color_value), (0, y), (WIDTH, y))
+    """Draws the main menu screen with matrix rain background and buttons."""
+    # Draw matrix rain background
+    SCREEN.fill(BLACK) # Start with a black background for the matrix rain
+    for stream in matrix_streams:
+        stream.update() # Update stream position and characters
+        stream.draw(SCREEN) # Draw stream to screen
 
     # Display logo
     if logo_img is not None:
@@ -378,15 +437,12 @@ def draw_menu():
 
 
 def draw_game():
-    # Display background image (this could be a different background for the game)
-    # For now, it reuses the menu background, but you might want to change this.
-    if menu_bg_img is not None:
-        # For game screen, let's just display the static background for simplicity
-        # Or you could implement panning for game background too, if desired.
-        SCREEN.blit(menu_bg_img, (0, 0))
-    else:
-        # Fallback to black screen if image isn't available
-        SCREEN.fill(BLACK)
+    """Draws the game screen with matrix rain background and a back button."""
+    # Draw matrix rain background for the game screen too
+    SCREEN.fill(BLACK)
+    for stream in matrix_streams:
+        stream.update()
+        stream.draw(SCREEN)
 
     # Draw back to menu button
     back_button.draw(SCREEN)
@@ -746,10 +802,10 @@ def main_menu():
 
 
 # Define button dimensions
-start_button_width = 200
-start_button_height = 80
-exit_button_width = 200
-exit_button_height = 80
+start_button_width = 256
+start_button_height = 87
+exit_button_width = 256
+exit_button_height = 78
 
 # Define button animation paths
 start_animation_path = os.path.join("Images", "StartButtonPNG")
