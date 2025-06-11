@@ -4,7 +4,8 @@ import os
 import random
 import math
 # Import the introduction module
-from INTRODUCTION import introduction_main
+from Introduction import introduction_main
+
 
 # Initialize pygame
 pygame.init()
