@@ -39,7 +39,7 @@ screen = pygame.display.set_mode((WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption("Quantum Slither")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("consolas", 28)
-pygame.mixer.music.load('background.wav')
+pygame.mixer.music.load("C:\\Users\\Gabrielle\\PycharmProjects\\\HCI\\DEADLINE CHRONICLES\\SnakeGame\\Audio\\background.wav")
 pygame.mixer.music.play(-1)
 
 PAUSE_ICON_X = 16
