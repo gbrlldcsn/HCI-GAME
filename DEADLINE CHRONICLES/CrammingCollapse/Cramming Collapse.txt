@@ -39,7 +39,7 @@ pause_time_offset = 0  # Track time spent paused
 pause_start_time = 0  # Global variable for pause timing
 score = 0
 best_score = 0
-volume = 0.0
+volume = 0.3
 
 # Menu navigation variables
 menu_selection = 0  # 0=Start, 1=Settings, 2=Exit
@@ -743,7 +743,7 @@ while run:
                         if flappy.rect.left > pipe.rect.right:
                             pipe.passed = True
                             score += 1
-                            if score == 20 and game_state != "victory_screen":
+                            if score == 40 and game_state != "victory_screen":
                                 victory = True
                                 game_state = "victory_screen"
                                 victory_time = None
